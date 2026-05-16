@@ -109,3 +109,34 @@ export const getSetting = (key: string) =>
   invoke<string | null>("get_setting", { key });
 export const setSetting = (key: string, value: string) =>
   invoke<void>("set_setting", { key, value });
+
+// ── storage ──
+export interface StorageStats {
+  dbBytes: number;
+  articleCount: number;
+  feedCount: number;
+}
+export const storageStats = () => invoke<StorageStats>("storage_stats");
+export const cleanupArticles = (days: number) =>
+  invoke<number>("cleanup_articles", { days });
+export const vacuumDb = () => invoke<void>("vacuum_db");
+export const resetSettings = () => invoke<void>("reset_settings");
+export const clearAllData = () => invoke<void>("clear_all_data");
+
+// ── network ──
+export const applyNetworkSettings = () =>
+  invoke<void>("apply_network_settings");
+
+// ── FreshRSS sync ──
+export interface FreshRssStatus {
+  connected: boolean;
+  url: string | null;
+}
+export const freshrssStatus = () => invoke<FreshRssStatus>("freshrss_status");
+export const freshrssConnect = (
+  url: string,
+  username: string,
+  password: string,
+) => invoke<void>("freshrss_connect", { url, username, password });
+export const freshrssDisconnect = () => invoke<void>("freshrss_disconnect");
+export const freshrssSync = () => invoke<number>("freshrss_sync");

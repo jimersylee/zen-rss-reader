@@ -7,6 +7,7 @@ import { useUi } from "../store";
 import { useArticleActions } from "../hooks/articleActions";
 import { renderMarkdown } from "../lib/markdown";
 import { fullDate } from "../lib/feedMeta";
+import { errorText } from "../lib/errors";
 import type { ArticleDetail } from "../types";
 import Icon from "./Icon";
 
@@ -78,7 +79,7 @@ export default function Reader({ onToast }: Props) {
       qc.invalidateQueries({ queryKey: ["article", a!.id] });
       onToast(t("reader.fullTextExtracted"));
     },
-    onError: (e) => onToast(String(e)),
+    onError: (e) => onToast(errorText(e)),
   });
 
   const onScroll = () => {
@@ -333,7 +334,7 @@ function AIDrawer({
       .then(() => {
         if (!cancelled) qc.invalidateQueries({ queryKey: ["article", article.id] });
       })
-      .catch((e) => !cancelled && onToast(String(e)))
+      .catch((e) => !cancelled && onToast(errorText(e)))
       .finally(() => !cancelled && setBusy(false));
     return () => {
       cancelled = true;

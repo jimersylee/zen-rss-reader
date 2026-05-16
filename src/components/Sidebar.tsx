@@ -3,10 +3,11 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../api";
 import { useUi } from "../store";
-import { feedAvatar, feedColor } from "../lib/feedMeta";
+import { errorText } from "../lib/errors";
 import type { ArticleQuery, Feed, Folder } from "../types";
 import Icon, { type IconName } from "./Icon";
 import ContextMenu, { type MenuEntry } from "./ContextMenu";
+import FeedAvatar from "./FeedAvatar";
 import PromptDialog from "./PromptDialog";
 
 interface Props {
@@ -96,7 +97,7 @@ export default function Sidebar({
         qc.invalidateQueries();
         onToast(ok);
       })
-      .catch((e) => onToast(String(e)));
+      .catch((e) => onToast(errorText(e)));
 
   const allFeeds = feeds.data ?? [];
   const allFolders = folders.data ?? [];
@@ -228,9 +229,7 @@ export default function Sidebar({
       }}
       title={f.fetchError ?? f.title}
     >
-      <span className="sb-feed-avatar" style={{ background: feedColor(f.id) }}>
-        {feedAvatar(f.title)}
-      </span>
+      <FeedAvatar title={f.title} faviconUrl={f.faviconUrl} seed={f.id} />
       <span className="sb-label">{f.title}</span>
       {f.fetchError && <span className="sb-warn">!</span>}
       {showCounts && f.unreadCount > 0 && (

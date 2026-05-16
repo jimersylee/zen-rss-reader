@@ -56,7 +56,7 @@ pub async fn add_feed(
     url: String,
     folder_id: Option<i64>,
 ) -> AppResult<Feed> {
-    let client = state.http.clone();
+    let client = state.http();
 
     // Step 1: fetch whatever the user gave us.
     let (bytes, _ct, final_url) = fetch::get(&client, &url).await?;
@@ -70,7 +70,7 @@ pub async fn add_feed(
         let candidate = candidates
             .into_iter()
             .next()
-            .ok_or_else(|| AppError::other("no feed found at that URL"))?;
+            .ok_or_else(|| AppError::code("noFeedFound"))?;
         let (fb, _, _) = fetch::get(&client, &candidate).await?;
         (candidate, fb)
     };
@@ -97,7 +97,7 @@ pub async fn add_feed(
     // Step 4: persist.
     let conn = state.db.lock().await;
     if db::find_feed_by_url(&conn, &feed_url)?.is_some() {
-        return Err(AppError::other("already subscribed to this feed"));
+        return Err(AppError::code("alreadySubscribed"));
     }
     let feed_id = db::insert_feed(
         &conn,
@@ -111,8 +111,11 @@ pub async fn add_feed(
     if let Some(fav) = &favicon {
         db::update_feed_meta(&conn, feed_id, None, None, None, Some(fav))?;
     }
+    let dedup = db::get_setting(&conn, "dedup_enabled")?
+        .map(|v| v == "1")
+        .unwrap_or(false);
     for article in &parsed.articles {
-        db::upsert_article(&conn, feed_id, article)?;
+        db::upsert_article(&conn, feed_id, article, dedup)?;
     }
     let unread = parsed.articles.len() as i64;
     drop(conn);
@@ -193,16 +196,37 @@ pub async fn get_article(state: State<'_, AppState>, id: i64) -> AppResult<Artic
     db::get_article(&conn, id)
 }
 
-#[tauri::command]
-pub async fn mark_read(state: State<'_, AppState>, id: i64, read: bool) -> AppResult<()> {
-    let conn = state.db.lock().await;
-    db::set_read(&conn, id, read)
+/// Queue a read/starred change for FreshRSS, but only when a server is linked.
+fn enqueue_if_connected(conn: &rusqlite::Connection, id: i64, field: &str, value: bool) {
+    let connected = db::get_setting(conn, "freshrss_url")
+        .ok()
+        .flatten()
+        .map(|u| !u.trim().is_empty())
+        .unwrap_or(false);
+    if connected {
+        let _ = db::enqueue_sync(conn, id, field, value);
+    }
 }
 
 #[tauri::command]
-pub async fn mark_starred(state: State<'_, AppState>, id: i64, starred: bool) -> AppResult<()> {
+pub async fn mark_read(app: AppHandle, id: i64, read: bool) -> AppResult<()> {
+    {
+        let state = app.state::<AppState>();
+        let conn = state.db.lock().await;
+        db::set_read(&conn, id, read)?;
+        enqueue_if_connected(&conn, id, "read", read);
+    }
+    crate::notify::update_badge(&app).await;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn mark_starred(app: AppHandle, id: i64, starred: bool) -> AppResult<()> {
+    let state = app.state::<AppState>();
     let conn = state.db.lock().await;
-    db::set_starred(&conn, id, starred)
+    db::set_starred(&conn, id, starred)?;
+    enqueue_if_connected(&conn, id, "starred", starred);
+    Ok(())
 }
 
 #[tauri::command]
@@ -219,6 +243,7 @@ pub async fn mark_all_read(app: AppHandle, query: ArticleQuery) -> AppResult<usi
         db::mark_all_read(&conn, &query)?
     };
     let _ = app.emit("feeds-updated", 0);
+    crate::notify::update_badge(&app).await;
     Ok(n)
 }
 
@@ -251,10 +276,11 @@ pub async fn extract_fulltext(state: State<'_, AppState>, article_id: i64) -> Ap
         let conn = state.db.lock().await;
         db::get_article(&conn, article_id)?
             .url
-            .ok_or_else(|| AppError::other("article has no source URL"))?
+            .ok_or_else(|| AppError::code("noArticleUrl"))?
     };
 
-    let (bytes, _ct, final_url) = fetch::get(&state.http, &url).await?;
+    let http = state.http();
+    let (bytes, _ct, final_url) = fetch::get(&http, &url).await?;
     let html = String::from_utf8_lossy(&bytes).into_owned();
 
     // Readability is not Send — run it on the blocking pool.
@@ -364,7 +390,8 @@ pub async fn ai_summarize(
                   clear, factual sentences. Output only the summary prose.";
     let user = format!("Title: {title}\n\n{}", truncate(&body, 8000));
 
-    let summary = ai::stream_chat(&state.http, &cfg, system, &user, &on_token).await?;
+    let http = state.http();
+    let summary = ai::stream_chat(&http, &cfg, system, &user, &on_token).await?;
     if !summary.trim().is_empty() {
         let conn = state.db.lock().await;
         db::set_ai_summary(&conn, article_id, summary.trim())?;
@@ -408,7 +435,8 @@ pub async fn ai_ask(
         format!("Articles from the user's feeds:\n\n{context}---\n\nQuestion: {question}")
     };
 
-    ai::stream_chat(&state.http, &cfg, system, &user, &on_token).await?;
+    let http = state.http();
+    ai::stream_chat(&http, &cfg, system, &user, &on_token).await?;
     Ok(())
 }
 
@@ -423,7 +451,7 @@ pub async fn ai_digest(
         (load_ai_config(&conn)?, db::digest_source(&conn, 30)?)
     };
     if articles.is_empty() {
-        return Err(AppError::other("no articles to summarize yet"));
+        return Err(AppError::code("noArticles"));
     }
 
     let mut corpus = String::new();
@@ -437,6 +465,123 @@ pub async fn ai_digest(
                   matters most, and keep it skimmable. Plain prose, no preamble.";
     let user = format!("Recent articles from my feeds:\n\n{corpus}");
 
-    ai::stream_chat(&state.http, &cfg, system, &user, &on_token).await?;
+    let http = state.http();
+    ai::stream_chat(&http, &cfg, system, &user, &on_token).await?;
     Ok(())
+}
+
+// ─────────────────────────── storage ───────────────────────────
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageStats {
+    db_bytes: i64,
+    article_count: i64,
+    feed_count: i64,
+}
+
+#[tauri::command]
+pub async fn storage_stats(state: State<'_, AppState>) -> AppResult<StorageStats> {
+    let conn = state.db.lock().await;
+    let (db_bytes, article_count, feed_count) = db::storage_stats(&conn)?;
+    Ok(StorageStats {
+        db_bytes,
+        article_count,
+        feed_count,
+    })
+}
+
+/// Delete read articles older than `days` (starred / read-later are kept).
+#[tauri::command]
+pub async fn cleanup_articles(app: AppHandle, days: i64) -> AppResult<usize> {
+    let n = {
+        let state = app.state::<AppState>();
+        let conn = state.db.lock().await;
+        db::cleanup_old_articles(&conn, days)?
+    };
+    let _ = app.emit("feeds-updated", 0);
+    Ok(n)
+}
+
+/// Reclaim free database pages.
+#[tauri::command]
+pub async fn vacuum_db(state: State<'_, AppState>) -> AppResult<()> {
+    let conn = state.db.lock().await;
+    db::vacuum(&conn)
+}
+
+/// Clear every stored setting (AI keys, sync credentials, preferences).
+#[tauri::command]
+pub async fn reset_settings(state: State<'_, AppState>) -> AppResult<()> {
+    let conn = state.db.lock().await;
+    db::reset_settings(&conn)
+}
+
+/// Delete all feeds, folders and articles. Irreversible.
+#[tauri::command]
+pub async fn clear_all_data(app: AppHandle) -> AppResult<()> {
+    {
+        let state = app.state::<AppState>();
+        let conn = state.db.lock().await;
+        db::clear_all_data(&conn)?;
+    }
+    let _ = app.emit("feeds-updated", 0);
+    crate::notify::update_badge(&app).await;
+    Ok(())
+}
+
+// ─────────────────────────── network ───────────────────────────
+
+/// Rebuild the HTTP client from the persisted proxy / timeout settings so the
+/// change takes effect without an app restart.
+#[tauri::command]
+pub async fn apply_network_settings(state: State<'_, AppState>) -> AppResult<()> {
+    let client = {
+        let conn = state.db.lock().await;
+        fetch::build_client_from_settings(&conn)
+    };
+    *state.http.write().expect("http lock poisoned") = client;
+    Ok(())
+}
+
+// ─────────────────────────── FreshRSS sync ───────────────────────────
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FreshRssStatus {
+    connected: bool,
+    url: Option<String>,
+}
+
+#[tauri::command]
+pub async fn freshrss_connect(
+    app: AppHandle,
+    url: String,
+    username: String,
+    password: String,
+) -> AppResult<()> {
+    crate::sync::connect(&app, &url, &username, &password).await
+}
+
+#[tauri::command]
+pub async fn freshrss_disconnect(app: AppHandle) -> AppResult<()> {
+    crate::sync::disconnect(&app).await
+}
+
+#[tauri::command]
+pub async fn freshrss_status(app: AppHandle) -> AppResult<FreshRssStatus> {
+    let url = crate::sync::connected_url(&app).await?;
+    Ok(FreshRssStatus {
+        connected: url.is_some(),
+        url,
+    })
+}
+
+/// Run a full FreshRSS sync now; returns the number of reconciled articles.
+#[tauri::command]
+pub async fn freshrss_sync(app: AppHandle) -> AppResult<usize> {
+    let n = crate::sync::sync_now(&app).await?;
+    let _ = app.emit("feeds-updated", 0);
+    crate::notify::update_badge(&app).await;
+    Ok(n)
 }

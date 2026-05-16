@@ -1,9 +1,13 @@
 // App internationalisation. Three bundled languages (zh / en / ja); the
 // active one is detected from the macOS system locale on first launch and
 // can be overridden from Settings — the choice persists in localStorage.
+//
+// The active language is also mirrored into the backend settings table so the
+// Rust side (e.g. the "new articles" notification) can localise its own text.
 
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
+import * as api from "./api";
 import zh from "./locales/zh.json";
 import en from "./locales/en.json";
 import ja from "./locales/ja.json";
@@ -30,10 +34,17 @@ export function detectLanguage(): Language {
   return "en";
 }
 
+/** Mirror the language into the backend so Rust-side text can be localised. */
+function persistToBackend(lang: Language): void {
+  api.setSetting("language", lang).catch(() => {});
+}
+
 /** Switch the active language and remember it across launches. */
 export function setLanguage(lang: Language): void {
   localStorage.setItem(STORAGE_KEY, lang);
   i18n.changeLanguage(lang);
+  document.documentElement.lang = lang;
+  persistToBackend(lang);
 }
 
 i18n.use(initReactI18next).init({
@@ -46,5 +57,8 @@ i18n.use(initReactI18next).init({
   fallbackLng: "en",
   interpolation: { escapeValue: false },
 });
+
+// Sync the detected language to the backend on startup.
+persistToBackend(detectLanguage());
 
 export default i18n;

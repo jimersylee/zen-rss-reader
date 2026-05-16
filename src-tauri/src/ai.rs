@@ -35,7 +35,7 @@ impl AiConfig {
     pub fn new(provider: Option<String>, api_key: Option<String>, model: Option<String>) -> AppResult<Self> {
         let api_key = api_key
             .filter(|k| !k.trim().is_empty())
-            .ok_or_else(|| AppError::other("no AI API key set — add one in Settings"))?;
+            .ok_or_else(|| AppError::code("noAiKey"))?;
         let provider = match provider.as_deref() {
             Some("openai") => Provider::OpenAi,
             _ => Provider::Anthropic,

@@ -356,5 +356,23 @@
     "toastRenamed": "Renamed",
     "toastUnsubscribed": "Unsubscribed {{feed}}",
     "toastFolderDeleted": "Folder deleted"
+  },
+  "error": {
+    "db": "Database error: {{detail}}",
+    "migration": "Database migration failed: {{detail}}",
+    "network": "Network error: {{detail}}",
+    "feedParse": "Could not parse the feed",
+    "opml": "OPML error: {{detail}}",
+    "other": "{{detail}}",
+    "unknown": "An unknown error occurred",
+    "noAiKey": "No AI API key set — add one in Settings → Advanced",
+    "noFeedFound": "No feed found at that URL",
+    "alreadySubscribed": "You are already subscribed to this feed",
+    "noArticleUrl": "This article has no source URL",
+    "noArticles": "No articles to summarize yet",
+    "noExtractableContent": "Couldn’t extract readable content from that page",
+    "freshrssLoginFailed": "FreshRSS login failed — check the server URL, username and password",
+    "freshrssNoToken": "FreshRSS did not return an auth token",
+    "freshrssNotConnected": "Not connected to FreshRSS"
   }
 }

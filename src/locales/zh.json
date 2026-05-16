@@ -356,5 +356,23 @@
     "toastRenamed": "已重命名",
     "toastUnsubscribed": "已退订 {{feed}}",
     "toastFolderDeleted": "已删除文件夹"
+  },
+  "error": {
+    "db": "数据库出错：{{detail}}",
+    "migration": "数据库迁移失败：{{detail}}",
+    "network": "网络错误：{{detail}}",
+    "feedParse": "订阅源解析失败",
+    "opml": "OPML 处理出错：{{detail}}",
+    "other": "{{detail}}",
+    "unknown": "发生未知错误",
+    "noAiKey": "尚未设置 AI API Key，请在「设置 → 高级」中填写",
+    "noFeedFound": "在该网址未找到可订阅的源",
+    "alreadySubscribed": "已经订阅过这个源了",
+    "noArticleUrl": "这篇文章没有原文链接",
+    "noArticles": "还没有可供生成摘要的文章",
+    "noExtractableContent": "未能从该页面提取到正文",
+    "freshrssLoginFailed": "FreshRSS 登录失败：请检查服务器地址、用户名与密码",
+    "freshrssNoToken": "FreshRSS 未返回认证令牌",
+    "freshrssNotConnected": "尚未连接 FreshRSS"
   }
 }

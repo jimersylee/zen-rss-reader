@@ -9,6 +9,9 @@
     "opener:default",
     "opener:allow-open-url",
     "notification:default",
-    "os:default"
+    "os:default",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled"
   ]
 }

@@ -5,9 +5,11 @@ import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import * as api from "../api";
 import { useUi } from "../store";
 import { LANGUAGES, setLanguage, type Language } from "../i18n";
-import { feedAvatar, feedColor, feedHost } from "../lib/feedMeta";
+import { feedHost } from "../lib/feedMeta";
+import { errorText } from "../lib/errors";
 import type { Feed } from "../types";
 import Icon, { type IconName } from "./Icon";
+import FeedAvatar from "./FeedAvatar";
 
 interface Props {
   onClose: () => void;
@@ -300,7 +302,7 @@ function LaunchAtLogin({ onToast }: { onToast: (m: string) => void }) {
       else await disable();
       setOn(v);
     } catch (e) {
-      onToast(String(e));
+      onToast(errorText(e));
     }
   };
   return (
@@ -654,7 +656,7 @@ function SubscriptionsSection({
       URL.revokeObjectURL(url);
       onToast(t("settings.subscriptions.opmlExported"));
     } catch (e) {
-      onToast(String(e));
+      onToast(errorText(e));
     }
   };
 
@@ -664,7 +666,7 @@ function SubscriptionsSection({
       await qc.invalidateQueries();
       onToast(t("settings.subscriptions.opmlImported", { count: n }));
     } catch (e) {
-      onToast(String(e));
+      onToast(errorText(e));
     }
   };
 
@@ -675,7 +677,7 @@ function SubscriptionsSection({
         qc.invalidateQueries();
         onToast(t("settings.subscriptions.unsubscribed", { title: f.title }));
       })
-      .catch((e) => onToast(String(e)));
+      .catch((e) => onToast(errorText(e)));
 
   return (
     <>
@@ -738,17 +740,12 @@ function SubscriptionsSection({
         <div>
           {filtered.map((f) => (
             <div key={f.id} className="s-feed-row">
-              <span
-                className="sb-feed-avatar"
-                style={{
-                  background: feedColor(f.id),
-                  width: 22,
-                  height: 22,
-                  borderRadius: 5,
-                }}
-              >
-                {feedAvatar(f.title)}
-              </span>
+              <FeedAvatar
+                title={f.title}
+                faviconUrl={f.faviconUrl}
+                seed={f.id}
+                style={{ width: 22, height: 22, borderRadius: 5 }}
+              />
               <span className="name">{f.title}</span>
               <span className="url">{feedHost(f)}</span>
               <div className="actions">
@@ -798,7 +795,7 @@ function SyncSection({ onToast }: { onToast: (m: string) => void }) {
       onToast(t("settings.sync.connected"));
       setPass("");
     } catch (e) {
-      onToast(String(e));
+      onToast(errorText(e));
     } finally {
       setBusy(false);
     }
@@ -811,7 +808,7 @@ function SyncSection({ onToast }: { onToast: (m: string) => void }) {
       await qc.invalidateQueries({ queryKey: ["freshrss-status"] });
       onToast(t("settings.sync.disconnected"));
     } catch (e) {
-      onToast(String(e));
+      onToast(errorText(e));
     } finally {
       setBusy(false);
     }
@@ -824,7 +821,7 @@ function SyncSection({ onToast }: { onToast: (m: string) => void }) {
       await qc.invalidateQueries();
       onToast(t("settings.sync.syncDone", { count: n }));
     } catch (e) {
-      onToast(String(e));
+      onToast(errorText(e));
     } finally {
       setBusy(false);
     }
@@ -1096,7 +1093,7 @@ function StorageGroup({ onToast }: { onToast: (m: string) => void }) {
           : t("settings.advanced.cleanupNone"),
       );
     } catch (e) {
-      onToast(String(e));
+      onToast(errorText(e));
     } finally {
       setBusy(false);
     }
@@ -1108,7 +1105,7 @@ function StorageGroup({ onToast }: { onToast: (m: string) => void }) {
       await qc.invalidateQueries({ queryKey: ["storage-stats"] });
       onToast(t("settings.advanced.vacuumDone"));
     } catch (e) {
-      onToast(String(e));
+      onToast(errorText(e));
     } finally {
       setBusy(false);
     }
@@ -1201,7 +1198,7 @@ function NetworkGroup({ onToast }: { onToast: (m: string) => void }) {
       .setSetting("net_proxy", value)
       .then(() => api.applyNetworkSettings())
       .then(() => onToast(t("settings.advanced.proxyApplied")))
-      .catch((e) => onToast(String(e)));
+      .catch((e) => onToast(errorText(e)));
   };
 
   return (
@@ -1291,7 +1288,7 @@ function DangerZone({ onToast }: { onToast: (m: string) => void }) {
       onToast(t("settings.advanced.resetDone"));
       setTimeout(() => location.reload(), 900);
     } catch (e) {
-      onToast(String(e));
+      onToast(errorText(e));
     }
   };
   const clearData = async () => {
@@ -1301,7 +1298,7 @@ function DangerZone({ onToast }: { onToast: (m: string) => void }) {
       await qc.invalidateQueries();
       onToast(t("settings.advanced.clearDone"));
     } catch (e) {
-      onToast(String(e));
+      onToast(errorText(e));
     }
   };
   return (
@@ -1360,7 +1357,7 @@ function AiSettingsGroup({ onToast }: { onToast: (m: string) => void }) {
     api
       .setSetting(key, value)
       .then(() => onToast(t("settings.advanced.aiSaved", { label })))
-      .catch((e) => onToast(String(e)));
+      .catch((e) => onToast(errorText(e)));
   };
 
   const placeholder =

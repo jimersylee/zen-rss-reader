@@ -7,6 +7,7 @@ import * as api from "../api";
 import { useUi } from "../store";
 import { useArticleActions } from "../hooks/articleActions";
 import { feedAvatar, feedColor, relTime } from "../lib/feedMeta";
+import { errorText } from "../lib/errors";
 import type { ArticleSummary, Feed } from "../types";
 import Icon from "./Icon";
 import ContextMenu, { type MenuEntry } from "./ContextMenu";
@@ -117,7 +118,7 @@ export default function ArticleList({ onToast }: Props) {
           : t("articleList.nothingToMark"),
       );
     } catch (e) {
-      onToast(String(e));
+      onToast(errorText(e));
     }
   };
 

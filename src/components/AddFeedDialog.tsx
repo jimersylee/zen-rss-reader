@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../api";
+import { errorText } from "../lib/errors";
 import Icon from "./Icon";
 
 interface Props {
@@ -64,7 +65,7 @@ export default function AddFeedDialog({ onClose, onToast }: Props) {
             ))}
           </select>
         )}
-        {add.isError && <div className="modal-error">{String(add.error)}</div>}
+        {add.isError && <div className="modal-error">{errorText(add.error)}</div>}
         <div className="modal-actions">
           <button className="s-btn" onClick={onClose}>
             {t("common.cancel")}

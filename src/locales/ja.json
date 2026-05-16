@@ -356,5 +356,23 @@
     "toastRenamed": "名前を変更しました",
     "toastUnsubscribed": "{{feed}} の購読を解除しました",
     "toastFolderDeleted": "フォルダを削除しました"
+  },
+  "error": {
+    "db": "データベースエラー：{{detail}}",
+    "migration": "データベースの移行に失敗しました：{{detail}}",
+    "network": "ネットワークエラー：{{detail}}",
+    "feedParse": "フィードを解析できませんでした",
+    "opml": "OPML エラー：{{detail}}",
+    "other": "{{detail}}",
+    "unknown": "不明なエラーが発生しました",
+    "noAiKey": "AI API キーが未設定です。「設定 → 詳細」で入力してください",
+    "noFeedFound": "その URL ではフィードが見つかりませんでした",
+    "alreadySubscribed": "このフィードはすでに購読済みです",
+    "noArticleUrl": "この記事には元記事の URL がありません",
+    "noArticles": "要約できる記事がまだありません",
+    "noExtractableContent": "そのページから本文を抽出できませんでした",
+    "freshrssLoginFailed": "FreshRSS のログインに失敗しました。サーバー URL・ユーザー名・パスワードを確認してください",
+    "freshrssNoToken": "FreshRSS が認証トークンを返しませんでした",
+    "freshrssNotConnected": "FreshRSS に接続されていません"
   }
 }

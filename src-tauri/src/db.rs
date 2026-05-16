@@ -88,6 +88,19 @@ static MIGRATIONS: LazyLock<Migrations> = LazyLock::new(|| {
         // removed; this keeps the version count aligned for databases that
         // already applied it. Search is keyword-only (FTS5).
         M::up("-- semantic search removed; search is FTS5 keyword-only"),
+        // v3 — sync support: a remote item id per article plus a small queue
+        // of local read/starred changes still to push to the sync server.
+        M::up(
+            r#"
+            ALTER TABLE articles ADD COLUMN remote_id TEXT;
+            CREATE TABLE sync_queue (
+                article_id INTEGER NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+                field      TEXT NOT NULL,
+                value      INTEGER NOT NULL,
+                PRIMARY KEY (article_id, field)
+            );
+            "#,
+        ),
     ])
 });
 
@@ -341,7 +354,26 @@ pub struct NewArticle {
 }
 
 /// Insert an article if it is new (by feed_id + guid). Returns true if inserted.
-pub fn upsert_article(conn: &Connection, feed_id: i64, a: &NewArticle) -> AppResult<bool> {
+/// When `dedup` is on, an article whose URL already exists (in any feed) is
+/// skipped — collapsing the same story pushed by multiple feeds.
+pub fn upsert_article(
+    conn: &Connection,
+    feed_id: i64,
+    a: &NewArticle,
+    dedup: bool,
+) -> AppResult<bool> {
+    if dedup {
+        if let Some(url) = a.url.as_deref().filter(|u| !u.is_empty()) {
+            let exists: bool = conn.query_row(
+                "SELECT EXISTS(SELECT 1 FROM articles WHERE url = ?1)",
+                params![url],
+                |r| r.get(0),
+            )?;
+            if exists {
+                return Ok(false);
+            }
+        }
+    }
     let n = conn.execute(
         "INSERT INTO articles
             (feed_id, guid, url, title, author, summary, content_html, body_text, image_url, published_at)
@@ -608,3 +640,129 @@ pub fn set_setting(conn: &Connection, key: &str, value: &str) -> AppResult<()> {
 
 #[allow(dead_code)]
 fn _unused(_: &AppError) {}
+
+// ─────────────────────────── storage ───────────────────────────
+
+/// `(database bytes, article count, feed count)` for the storage panel.
+pub fn storage_stats(conn: &Connection) -> AppResult<(i64, i64, i64)> {
+    let page_count: i64 = conn.query_row("PRAGMA page_count", [], |r| r.get(0))?;
+    let page_size: i64 = conn.query_row("PRAGMA page_size", [], |r| r.get(0))?;
+    let articles: i64 = conn.query_row("SELECT COUNT(*) FROM articles", [], |r| r.get(0))?;
+    let feeds: i64 = conn.query_row("SELECT COUNT(*) FROM feeds", [], |r| r.get(0))?;
+    Ok((page_count * page_size, articles, feeds))
+}
+
+/// Delete read articles older than `days`, keeping starred / read-later ones.
+/// Returns the number removed.
+pub fn cleanup_old_articles(conn: &Connection, days: i64) -> AppResult<usize> {
+    Ok(conn.execute(
+        "DELETE FROM articles
+         WHERE is_starred = 0 AND read_later = 0 AND is_read = 1
+           AND published_at IS NOT NULL
+           AND published_at < datetime('now', ?1)",
+        params![format!("-{days} days")],
+    )?)
+}
+
+/// Reclaim free pages — must run outside any transaction.
+pub fn vacuum(conn: &Connection) -> AppResult<()> {
+    conn.execute_batch("VACUUM")?;
+    Ok(())
+}
+
+/// Wipe all user content (feeds → articles cascade, folders). Settings are kept.
+pub fn clear_all_data(conn: &Connection) -> AppResult<()> {
+    conn.execute_batch("DELETE FROM feeds; DELETE FROM folders;")?;
+    Ok(())
+}
+
+/// Clear every stored setting except the first-run seed marker.
+pub fn reset_settings(conn: &Connection) -> AppResult<()> {
+    conn.execute("DELETE FROM settings WHERE key != 'seeded'", [])?;
+    Ok(())
+}
+
+pub fn count_unread(conn: &Connection) -> AppResult<i64> {
+    Ok(conn.query_row("SELECT COUNT(*) FROM articles WHERE is_read = 0", [], |r| r.get(0))?)
+}
+
+// ─────────────────────────── sync ───────────────────────────
+
+/// Local article id for a given source URL — used to reconcile remote state.
+pub fn article_id_by_url(conn: &Connection, url: &str) -> AppResult<Option<i64>> {
+    Ok(conn
+        .query_row(
+            "SELECT id FROM articles WHERE url = ?1 LIMIT 1",
+            params![url],
+            |r| r.get(0),
+        )
+        .optional()?)
+}
+
+pub fn set_remote_id(conn: &Connection, article_id: i64, remote_id: &str) -> AppResult<()> {
+    conn.execute(
+        "UPDATE articles SET remote_id = ?2 WHERE id = ?1",
+        params![article_id, remote_id],
+    )?;
+    Ok(())
+}
+
+/// Apply remote read/starred state to a local article.
+pub fn set_sync_state(
+    conn: &Connection,
+    article_id: i64,
+    read: bool,
+    starred: bool,
+) -> AppResult<()> {
+    conn.execute(
+        "UPDATE articles SET is_read = ?2, is_starred = ?3 WHERE id = ?1",
+        params![article_id, read, starred],
+    )?;
+    Ok(())
+}
+
+/// Queue a local read/starred change to push on the next sync.
+pub fn enqueue_sync(
+    conn: &Connection,
+    article_id: i64,
+    field: &str,
+    value: bool,
+) -> AppResult<()> {
+    conn.execute(
+        "INSERT INTO sync_queue(article_id, field, value) VALUES (?1, ?2, ?3)
+         ON CONFLICT(article_id, field) DO UPDATE SET value = excluded.value",
+        params![article_id, field, value],
+    )?;
+    Ok(())
+}
+
+/// Article ids that still carry un-pushed local changes — their state must not
+/// be overwritten by a pull until the change has been sent.
+pub fn pending_sync_article_ids(conn: &Connection) -> AppResult<Vec<i64>> {
+    let mut stmt = conn.prepare("SELECT DISTINCT article_id FROM sync_queue")?;
+    let ids = stmt
+        .query_map([], |r| r.get(0))?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(ids)
+}
+
+/// Drain pushable queue entries as `(remote_id, field, value)`. Only rows whose
+/// article already has a remote id are returned and removed; the rest wait for
+/// a pull to assign one.
+pub fn take_sync_queue(conn: &Connection) -> AppResult<Vec<(String, String, bool)>> {
+    let mut stmt = conn.prepare(
+        "SELECT a.remote_id, q.field, q.value
+         FROM sync_queue q JOIN articles a ON a.id = q.article_id
+         WHERE a.remote_id IS NOT NULL",
+    )?;
+    let rows: Vec<(String, String, bool)> = stmt
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get::<_, i64>(2)? != 0)))?
+        .collect::<Result<_, _>>()?;
+    drop(stmt);
+    conn.execute(
+        "DELETE FROM sync_queue WHERE article_id IN
+            (SELECT id FROM articles WHERE remote_id IS NOT NULL)",
+        [],
+    )?;
+    Ok(rows)
+}

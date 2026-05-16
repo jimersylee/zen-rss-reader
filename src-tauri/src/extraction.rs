@@ -17,7 +17,7 @@ pub fn extract_article(html: &str, url: &str) -> AppResult<String> {
         .map_err(|e| AppError::other(format!("readability parse: {e}")))?;
     let content = article.content.to_string();
     if content.trim().is_empty() {
-        return Err(AppError::other("no extractable content found"));
+        return Err(AppError::code("noExtractableContent"));
     }
     Ok(sanitize::sanitize(&content, Some(url)))
 }

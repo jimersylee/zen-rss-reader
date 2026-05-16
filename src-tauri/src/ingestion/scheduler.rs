@@ -6,9 +6,11 @@ use crate::error::AppResult;
 use crate::ingestion::{fetch, parse};
 use crate::models::RefreshProgress;
 use crate::state::AppState;
+use crate::{notify, sync};
+use std::sync::Arc;
 use std::time::Duration;
 use tauri::{ipc::Channel, AppHandle, Emitter, Manager};
-use tauri_plugin_notification::NotificationExt;
+use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 
 /// Outcome of fetching one feed.
@@ -46,26 +48,46 @@ async fn fetch_one(
     }
 }
 
-/// Refresh every feed concurrently. Streams per-feed progress over `progress`
-/// when provided, emits a `feeds-updated` event, and returns the new-article count.
+/// Read an integer setting, falling back to `default`.
+fn int_setting(conn: &rusqlite::Connection, key: &str, default: i64) -> i64 {
+    db::get_setting(conn, key)
+        .ok()
+        .flatten()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default)
+}
+
+/// Refresh every feed (bounded concurrency). Streams per-feed progress over
+/// `progress` when provided, emits `feeds-updated`, fires a notification,
+/// runs retention cleanup, syncs to FreshRSS, and returns the new-article count.
 pub async fn refresh_all(
     app: &AppHandle,
     progress: Option<Channel<RefreshProgress>>,
 ) -> AppResult<usize> {
     let state = app.state::<AppState>();
 
-    let feeds = {
+    let (feeds, concurrency, dedup) = {
         let conn = state.db.lock().await;
-        db::feeds_to_refresh(&conn)?
+        let feeds = db::feeds_to_refresh(&conn)?;
+        let concurrency = int_setting(&conn, "net_concurrency", 6).clamp(1, 16) as usize;
+        let dedup = db::get_setting(&conn, "dedup_enabled")
+            .ok()
+            .flatten()
+            .map(|v| v == "1")
+            .unwrap_or(false);
+        (feeds, concurrency, dedup)
     };
     if let Some(p) = &progress {
         let _ = p.send(RefreshProgress::Started { total: feeds.len() });
     }
 
+    let sem = Arc::new(Semaphore::new(concurrency));
     let mut set: JoinSet<(i64, Outcome)> = JoinSet::new();
     for (id, url, etag, last_modified) in feeds {
-        let client = state.http.clone();
+        let client = state.http();
+        let sem = sem.clone();
         set.spawn(async move {
+            let _permit = sem.acquire().await;
             (id, fetch_one(&client, &url, etag, last_modified).await)
         });
     }
@@ -94,7 +116,7 @@ pub async fn refresh_all(
                     last_modified,
                 } => {
                     for article in &parsed.articles {
-                        if db::upsert_article(&conn, feed_id, article).unwrap_or(false) {
+                        if db::upsert_article(&conn, feed_id, article, dedup).unwrap_or(false) {
                             new_here += 1;
                         }
                     }
@@ -127,6 +149,15 @@ pub async fn refresh_all(
         }
     }
 
+    // Retention: drop old read articles when a finite window is configured.
+    {
+        let conn = state.db.lock().await;
+        let retention = db::get_setting(&conn, "retention_days").ok().flatten();
+        if let Some(days) = retention.and_then(|v| v.parse::<i64>().ok()) {
+            let _ = db::cleanup_old_articles(&conn, days);
+        }
+    }
+
     if let Some(p) = &progress {
         let _ = p.send(RefreshProgress::Finished {
             new_articles: total_new,
@@ -134,14 +165,14 @@ pub async fn refresh_all(
     }
     let _ = app.emit("feeds-updated", total_new);
 
-    if total_new > 0 {
-        let _ = app
-            .notification()
-            .builder()
-            .title("Lumen")
-            .body(format!("{total_new} new article(s)"))
-            .show();
+    notify::notify_new_articles(app, total_new).await;
+
+    // Reconcile read/starred state with the sync server, if one is connected.
+    if let Err(e) = sync::run_if_connected(app).await {
+        log::warn!("sync failed: {e}");
     }
+
+    notify::update_badge(app).await;
     Ok(total_new)
 }
 

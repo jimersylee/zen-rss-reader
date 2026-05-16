@@ -1,23 +1,52 @@
 //! HTTP fetching with conditional GET (ETag / If-Modified-Since) so unchanged
 //! feeds cost a single 304 round-trip.
 
+use crate::db;
 use crate::error::AppResult;
 use reqwest::header::{
     CONTENT_TYPE, ETAG, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED,
 };
 use reqwest::{Client, StatusCode};
+use rusqlite::Connection;
 use std::time::Duration;
 
 pub const USER_AGENT: &str = "Lumen/0.1 (+https://github.com/lumen-reader)";
 
 /// Build the shared HTTP client (connection pooling, gzip/brotli, redirects).
-pub fn build_client() -> Client {
-    Client::builder()
+///
+/// `timeout_secs` bounds the whole request. `proxy` is one of `"system"`
+/// (honour `HTTP(S)_PROXY` env vars), `"none"` (bypass all proxies), or an
+/// explicit proxy URL.
+pub fn build_client(timeout_secs: u64, proxy: &str) -> Client {
+    let mut builder = Client::builder()
         .user_agent(USER_AGENT)
-        .timeout(Duration::from_secs(30))
-        .connect_timeout(Duration::from_secs(10))
-        .build()
-        .expect("failed to build reqwest client")
+        .timeout(Duration::from_secs(timeout_secs.clamp(5, 300)))
+        .connect_timeout(Duration::from_secs(10));
+
+    match proxy {
+        "system" | "" => {}
+        "none" => builder = builder.no_proxy(),
+        custom => {
+            if let Ok(p) = reqwest::Proxy::all(custom) {
+                builder = builder.proxy(p);
+            }
+        }
+    }
+    builder.build().expect("failed to build reqwest client")
+}
+
+/// Build the HTTP client from the persisted network settings.
+pub fn build_client_from_settings(conn: &Connection) -> Client {
+    let timeout = db::get_setting(conn, "net_timeout_sec")
+        .ok()
+        .flatten()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(30);
+    let proxy = db::get_setting(conn, "net_proxy")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "system".to_string());
+    build_client(timeout, &proxy)
 }
 
 /// Result of a conditional GET against a feed URL.

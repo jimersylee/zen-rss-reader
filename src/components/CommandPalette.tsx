@@ -2,9 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../api";
-import { feedAvatar, feedColor, feedHost, relTime } from "../lib/feedMeta";
+import { feedHost, relTime } from "../lib/feedMeta";
 import type { ArticleSummary, Feed } from "../types";
 import Icon, { type IconName } from "./Icon";
+import FeedAvatar from "./FeedAvatar";
 
 export type CommandAction =
   | "mark-all-read"
@@ -187,17 +188,11 @@ export default function CommandPalette({
             >
               <span className="cp-ico">
                 {it.feed ? (
-                  <span
-                    className="sb-feed-avatar"
-                    style={{
-                      background: feedColor(it.feed.id),
-                      width: 18,
-                      height: 18,
-                      borderRadius: 4,
-                    }}
-                  >
-                    {feedAvatar(it.feed.title)}
-                  </span>
+                  <FeedAvatar
+                    title={it.feed.title}
+                    faviconUrl={it.feed.faviconUrl}
+                    seed={it.feed.id}
+                  />
                 ) : (
                   <Icon name={it.icon ?? "rss"} size={15} />
                 )}

@@ -7,6 +7,7 @@ import * as api from "./api";
 import { useUi } from "./store";
 import { useArticleActions } from "./hooks/articleActions";
 import { readCurrentItems } from "./lib/currentList";
+import { errorText } from "./lib/errors";
 import type { ArticleQuery, ArticleSummary, Feed } from "./types";
 import Sidebar from "./components/Sidebar";
 import ArticleList from "./components/ArticleList";
@@ -65,6 +66,15 @@ export default function App() {
     root.style.setProperty("--accent-soft", dark ? a.dSoft : a.soft);
     root.style.setProperty("--accent-ink", dark ? a.dInk : a.ink);
   }, [theme, accent, density]);
+
+  // ── dismiss the boot splash once the app shell has mounted ──
+  useEffect(() => {
+    const el = document.getElementById("app-loading");
+    if (!el) return;
+    el.classList.add("hide");
+    const timer = window.setTimeout(() => el.remove(), 360);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     document.documentElement.dataset.reduceMotion = String(reduceMotion);
@@ -125,7 +135,7 @@ export default function App() {
           await qc.invalidateQueries();
           showToast(n > 0 ? t("app.foundNew", { count: n }) : t("app.upToDate"));
         })
-        .catch((e) => showToast(String(e)))
+        .catch((e) => showToast(errorText(e)))
         .finally(() => setRefreshing(false));
       return true;
     });
@@ -137,7 +147,7 @@ export default function App() {
       await qc.invalidateQueries();
       showToast(n > 0 ? t("app.markedRead", { count: n }) : t("app.nothingToMark"));
     } catch (e) {
-      showToast(String(e));
+      showToast(errorText(e));
     }
   }, [qc, showToast]);
 
@@ -313,7 +323,7 @@ export default function App() {
                 qc.invalidateQueries({ queryKey: ["folders"] });
                 showToast(t("app.folderCreated"));
               })
-              .catch((e) => showToast(String(e)))
+              .catch((e) => showToast(errorText(e)))
           }
           onClose={() => setNewFolder(false)}
         />

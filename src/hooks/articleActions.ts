@@ -36,9 +36,18 @@ export function useArticleActions() {
     );
   };
 
-  const refreshCounts = () => {
+  const refreshLists = () => {
     qc.invalidateQueries({ queryKey: ["counts"] });
     qc.invalidateQueries({ queryKey: ["feeds"] });
+    // Smart views (Starred / Read Later / Unread) are each their own
+    // ["articles", …] query. The optimistic `patch` above fixes articles
+    // already in a list, but it can't add or remove rows — so a freshly
+    // starred article never appears in the Starred list. Mark every
+    // article/search list stale so it re-fetches with the correct
+    // membership when next opened. `refetchType: "none"` avoids yanking
+    // rows out of the list the user is currently looking at.
+    qc.invalidateQueries({ queryKey: ["articles"], refetchType: "none" });
+    qc.invalidateQueries({ queryKey: ["search"], refetchType: "none" });
   };
 
   return {
@@ -46,17 +55,17 @@ export function useArticleActions() {
     async setRead(id: number, read: boolean) {
       await api.markRead(id, read);
       patch(id, { isRead: read });
-      refreshCounts();
+      refreshLists();
     },
     async setStarred(id: number, starred: boolean) {
       await api.markStarred(id, starred);
       patch(id, { isStarred: starred });
-      refreshCounts();
+      refreshLists();
     },
     async setReadLater(id: number, value: boolean) {
       await api.markReadLater(id, value);
       patch(id, { readLater: value });
-      refreshCounts();
+      refreshLists();
     },
   };
 }
