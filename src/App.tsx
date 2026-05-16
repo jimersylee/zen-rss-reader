@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -29,6 +30,7 @@ const ACCENTS: Record<
 type Toast = { text: string; kbd?: string };
 
 export default function App() {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const actions = useArticleActions();
 
@@ -72,9 +74,9 @@ export default function App() {
   useEffect(() => {
     const { startupView, hideReadOnStartup } = useUi.getState().prefs;
     const labels: Record<string, string> = {
-      all: "全部文章",
-      unread: "未读",
-      starred: "星标",
+      all: t("smart.all"),
+      unread: t("smart.unread"),
+      starred: t("smart.starred"),
     };
     if (startupView !== "last" && labels[startupView]) {
       useUi
@@ -116,12 +118,12 @@ export default function App() {
   const doRefresh = useCallback(() => {
     setRefreshing((busy) => {
       if (busy) return busy;
-      showToast("正在刷新所有订阅源…");
+      showToast(t("app.refreshing"));
       api
         .refreshFeeds()
         .then(async (n) => {
           await qc.invalidateQueries();
-          showToast(n > 0 ? `发现 ${n} 篇新文章` : "已是最新");
+          showToast(n > 0 ? t("app.foundNew", { count: n }) : t("app.upToDate"));
         })
         .catch((e) => showToast(String(e)))
         .finally(() => setRefreshing(false));
@@ -133,7 +135,7 @@ export default function App() {
     try {
       const n = await api.markAllRead(useUi.getState().query);
       await qc.invalidateQueries();
-      showToast(n > 0 ? `已将 ${n} 篇标为已读` : "没有需要标记的文章");
+      showToast(n > 0 ? t("app.markedRead", { count: n }) : t("app.nothingToMark"));
     } catch (e) {
       showToast(String(e));
     }
@@ -220,14 +222,14 @@ export default function App() {
           if (sel) {
             e.preventDefault();
             actions.setStarred(sel.id, !sel.isStarred);
-            showToast(sel.isStarred ? "已取消星标" : "已星标", "S");
+            showToast(sel.isStarred ? t("app.starRemoved") : t("app.starred"), "S");
           }
           break;
         case "b":
           if (sel) {
             e.preventDefault();
             actions.setReadLater(sel.id, !sel.readLater);
-            showToast(sel.readLater ? "已从稍后读移除" : "已加入稍后读", "B");
+            showToast(sel.readLater ? t("app.readLaterRemoved") : t("app.readLaterAdded"), "B");
           }
           break;
         case "u":
@@ -302,14 +304,14 @@ export default function App() {
 
       {newFolder && (
         <PromptDialog
-          title="新建文件夹"
-          placeholder="文件夹名称"
+          title={t("app.newFolderTitle")}
+          placeholder={t("app.folderNamePlaceholder")}
           onSubmit={(v) =>
             api
               .createFolder(v)
               .then(() => {
                 qc.invalidateQueries({ queryKey: ["folders"] });
-                showToast("已创建文件夹");
+                showToast(t("app.folderCreated"));
               })
               .catch((e) => showToast(String(e)))
           }

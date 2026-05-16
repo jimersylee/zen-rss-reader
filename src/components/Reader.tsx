@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import * as api from "../api";
 import { useUi } from "../store";
@@ -21,6 +22,7 @@ function youtubeId(url: string | null): string | null {
 }
 
 export default function Reader({ onToast }: Props) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const actions = useArticleActions();
   const id = useUi((s) => s.selectedArticleId);
@@ -74,7 +76,7 @@ export default function Reader({ onToast }: Props) {
     onSuccess: () => {
       setShowExtracted(true);
       qc.invalidateQueries({ queryKey: ["article", a!.id] });
-      onToast("已提取全文");
+      onToast(t("reader.fullTextExtracted"));
     },
     onError: (e) => onToast(String(e)),
   });
@@ -104,7 +106,7 @@ export default function Reader({ onToast }: Props) {
 
   const copyLink = () => {
     if (!a?.url) return;
-    navigator.clipboard.writeText(a.url).then(() => onToast("链接已复制"), () => {});
+    navigator.clipboard.writeText(a.url).then(() => onToast(t("reader.linkCopied")), () => {});
   };
   const share = () => {
     if (!a?.url) return;
@@ -120,9 +122,9 @@ export default function Reader({ onToast }: Props) {
           <div className="glyph">
             <Icon name="rss" size={22} />
           </div>
-          <div>选择一篇文章开始阅读</div>
+          <div>{t("reader.emptySelectArticle")}</div>
           <div style={{ fontSize: 11.5, color: "var(--muted-2)" }}>
-            按{" "}
+            {t("reader.emptyHintPrefix")}{" "}
             <kbd
               style={{
                 fontFamily: "var(--mono)",
@@ -146,7 +148,7 @@ export default function Reader({ onToast }: Props) {
             >
               K
             </kbd>{" "}
-            上下切换
+            {t("reader.emptyHintSuffix")}
           </div>
         </div>
       </div>
@@ -167,21 +169,21 @@ export default function Reader({ onToast }: Props) {
         <button
           className={`tb-btn ${a.isStarred ? "on" : ""}`}
           onClick={() => actions.setStarred(a.id, !a.isStarred)}
-          title="星标 (S)"
+          title={t("reader.tbStar")}
         >
           <Icon name={a.isStarred ? "star-fill" : "star"} size={16} />
         </button>
         <button
           className={`tb-btn ${a.readLater ? "on" : ""}`}
           onClick={() => actions.setReadLater(a.id, !a.readLater)}
-          title="稍后读 (B)"
+          title={t("reader.tbReadLater")}
         >
           <Icon name={a.readLater ? "bookmark-fill" : "bookmark"} size={16} />
         </button>
         <button
           className={`tb-btn ${aiOpen ? "on" : ""}`}
           onClick={() => setAiOpen(!aiOpen)}
-          title="AI 摘要 (I)"
+          title={t("reader.tbAiSummary")}
         >
           <Icon name={aiOpen ? "sparkle-fill" : "sparkle"} size={16} />
         </button>
@@ -193,20 +195,20 @@ export default function Reader({ onToast }: Props) {
             hasExtracted ? setShowExtracted((v) => !v) : extract.mutate()
           }
           disabled={extract.isPending}
-          title={hasExtracted ? "切换全文 / 摘要" : "提取全文"}
+          title={hasExtracted ? t("reader.tbToggleFullText") : t("reader.tbExtractFullText")}
         >
           <Icon name="text" size={16} />
         </button>
-        <button className="tb-btn" title="复制链接" onClick={copyLink}>
+        <button className="tb-btn" title={t("reader.tbCopyLink")} onClick={copyLink}>
           <Icon name="copy" size={16} />
         </button>
-        <button className="tb-btn" title="分享" onClick={share}>
+        <button className="tb-btn" title={t("reader.tbShare")} onClick={share}>
           <Icon name="share" size={16} />
         </button>
         <button
           className={`tb-btn ${focusMode ? "on" : ""}`}
           onClick={() => setFocusMode(!focusMode)}
-          title="焦点阅读 (F)"
+          title={t("reader.tbFocusMode")}
         >
           <Icon name="focus" size={16} />
         </button>
@@ -214,7 +216,7 @@ export default function Reader({ onToast }: Props) {
         {a.url && (
           <button
             className="tb-btn"
-            title="在浏览器中打开 (⌘O)"
+            title={t("reader.tbOpenInBrowser")}
             onClick={() => openUrl(a.url!).catch(() => {})}
           >
             <Icon name="open" size={16} />
@@ -236,13 +238,13 @@ export default function Reader({ onToast }: Props) {
             {showReadingTime && (
               <>
                 <span>·</span>
-                <span>{readMinutes} 分钟阅读</span>
+                <span>{t("reader.readMinutes", { count: readMinutes })}</span>
               </>
             )}
             {extract.isPending && (
               <>
                 <span>·</span>
-                <span>正在提取全文…</span>
+                <span>{t("reader.extractingFullText")}</span>
               </>
             )}
           </div>
@@ -278,7 +280,7 @@ export default function Reader({ onToast }: Props) {
             data-serif={useSerif}
             onClick={onBodyClick}
             dangerouslySetInnerHTML={{
-              __html: body || "<p><em>暂无正文内容。</em></p>",
+              __html: body || `<p><em>${t("reader.noContent")}</em></p>`,
             }}
           />
         </article>
@@ -305,6 +307,7 @@ function AIDrawer({
   onClose: () => void;
   onToast: (m: string) => void;
 }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [text, setText] = useState<string | null>(article.aiSummary);
   const [busy, setBusy] = useState(false);
@@ -346,8 +349,8 @@ function AIDrawer({
         <span className="accent-ico">
           <Icon name="sparkle-fill" size={15} />
         </span>
-        <h3>AI 摘要</h3>
-        <button className="tb-btn close" onClick={onClose} title="关闭">
+        <h3>{t("reader.aiSummaryTitle")}</h3>
+        <button className="tb-btn close" onClick={onClose} title={t("common.close")}>
           <Icon name="x" size={14} />
         </button>
       </div>
@@ -357,7 +360,7 @@ function AIDrawer({
             <span className="ai-dot" />
             <span className="ai-dot" />
             <span className="ai-dot" />
-            <span style={{ marginLeft: 4 }}>正在阅读全文…</span>
+            <span style={{ marginLeft: 4 }}>{t("reader.aiReadingFullText")}</span>
           </div>
         )}
         {text && (
@@ -374,7 +377,7 @@ function AIDrawer({
                 lineHeight: 1.5,
               }}
             >
-              由本地模型生成 · 仅供参考 · 内容可能不准确
+              {t("reader.aiDisclaimer")}
             </div>
           </>
         )}

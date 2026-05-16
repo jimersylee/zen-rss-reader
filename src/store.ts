@@ -3,6 +3,7 @@
 // design's settings / tweaks controls drive.
 
 import { create } from "zustand";
+import i18n from "./i18n";
 import type { ArticleQuery } from "./types";
 
 export type Theme = "light" | "dark";
@@ -113,7 +114,7 @@ function loadPrefs(): Prefs {
 
 export const useUi = create<UiState>((set) => ({
   query: { kind: "all" },
-  queryLabel: "全部文章",
+  queryLabel: i18n.t("smart.all"),
   selectedArticleId: null,
   unreadOnly: false,
   sortOldest: false,

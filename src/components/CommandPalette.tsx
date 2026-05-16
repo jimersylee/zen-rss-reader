@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import * as api from "../api";
 import { feedAvatar, feedColor, feedHost, relTime } from "../lib/feedMeta";
 import type { ArticleSummary, Feed } from "../types";
@@ -34,16 +35,16 @@ interface Item {
   run: () => void;
 }
 
-const ACTIONS: { icon: IconName; label: string; hint: string; action: CommandAction }[] = [
-  { icon: "check-all", label: "将当前列表全部标为已读", hint: "⇧A", action: "mark-all-read" },
-  { icon: "globe", label: "切换深色 / 浅色模式", hint: "⇧D", action: "toggle-theme" },
-  { icon: "focus", label: "焦点阅读模式", hint: "F", action: "toggle-focus" },
-  { icon: "sparkle", label: "AI 摘要当前文章", hint: "I", action: "toggle-ai" },
-  { icon: "refresh", label: "刷新所有订阅源", hint: "⌘R", action: "refresh" },
-  { icon: "plus", label: "添加订阅源…", hint: "A", action: "add-feed" },
-  { icon: "folder", label: "新建文件夹…", hint: "", action: "new-folder" },
-  { icon: "open", label: "OPML 导入 / 导出", hint: "", action: "opml" },
-  { icon: "settings", label: "打开设置…", hint: "⌘,", action: "open-settings" },
+const ACTIONS: { icon: IconName; labelKey: string; hint: string; action: CommandAction }[] = [
+  { icon: "check-all", labelKey: "commandPalette.actionMarkAllRead", hint: "⇧A", action: "mark-all-read" },
+  { icon: "globe", labelKey: "commandPalette.actionToggleTheme", hint: "⇧D", action: "toggle-theme" },
+  { icon: "focus", labelKey: "commandPalette.actionToggleFocus", hint: "F", action: "toggle-focus" },
+  { icon: "sparkle", labelKey: "commandPalette.actionToggleAi", hint: "I", action: "toggle-ai" },
+  { icon: "refresh", labelKey: "commandPalette.actionRefresh", hint: "⌘R", action: "refresh" },
+  { icon: "plus", labelKey: "commandPalette.actionAddFeed", hint: "A", action: "add-feed" },
+  { icon: "folder", labelKey: "commandPalette.actionNewFolder", hint: "", action: "new-folder" },
+  { icon: "open", labelKey: "commandPalette.actionOpml", hint: "", action: "opml" },
+  { icon: "settings", labelKey: "commandPalette.actionOpenSettings", hint: "⌘,", action: "open-settings" },
 ];
 
 export default function CommandPalette({
@@ -53,6 +54,7 @@ export default function CommandPalette({
   onNavigateFeed,
   onNavigateArticle,
 }: Props) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
   const [active, setActive] = useState(0);
@@ -90,12 +92,13 @@ export default function CommandPalette({
     const out: Item[] = [];
 
     for (const a of ACTIONS) {
-      if (q && !a.label.toLowerCase().includes(q)) continue;
+      const label = t(a.labelKey);
+      if (q && !label.toLowerCase().includes(q)) continue;
       out.push({
         id: `act-${a.action}`,
         group: "action",
         icon: a.icon,
-        label: a.label,
+        label,
         hint: a.hint,
         run: () => onAction(a.action),
       });
@@ -135,7 +138,7 @@ export default function CommandPalette({
     }
 
     return out;
-  }, [debounced, feeds.data, articleResults.data, onAction, onNavigateFeed, onNavigateArticle]);
+  }, [debounced, feeds.data, articleResults.data, onAction, onNavigateFeed, onNavigateArticle, t]);
 
   useEffect(() => {
     if (active >= items.length) setActive(0);
@@ -218,36 +221,38 @@ export default function CommandPalette({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKey}
-            placeholder="搜索文章、订阅源，或运行命令…"
+            placeholder={t("commandPalette.searchPlaceholder")}
           />
           <span className="cp-esc">ESC</span>
         </div>
         <div className="cp-list">
           {items.length === 0 ? (
             <div className="cp-empty">
-              {articleResults.isFetching ? "搜索中…" : "没有结果"}
+              {articleResults.isFetching
+                ? t("commandPalette.searching")
+                : t("commandPalette.noResults")}
             </div>
           ) : (
             <>
-              {renderGroup("action", "操作")}
-              {renderGroup("feed", "订阅源")}
-              {renderGroup("article", "文章")}
+              {renderGroup("action", t("commandPalette.groupActions"))}
+              {renderGroup("feed", t("commandPalette.groupFeeds"))}
+              {renderGroup("article", t("commandPalette.groupArticles"))}
             </>
           )}
         </div>
         <div className="cp-footer">
           <span>
             <kbd>↑</kbd>
-            <kbd>↓</kbd> 选择
+            <kbd>↓</kbd> {t("commandPalette.footerSelect")}
           </span>
           <span>
-            <kbd>⏎</kbd> 打开
+            <kbd>⏎</kbd> {t("commandPalette.footerOpen")}
           </span>
           <span>
-            <kbd>esc</kbd> 关闭
+            <kbd>esc</kbd> {t("commandPalette.footerClose")}
           </span>
           <div style={{ flex: 1 }} />
-          <span>支持文章 · 订阅源 · 命令</span>
+          <span>{t("commandPalette.footerHint")}</span>
         </div>
       </div>
     </div>

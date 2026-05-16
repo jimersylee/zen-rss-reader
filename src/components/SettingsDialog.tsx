@@ -1,7 +1,10 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import * as api from "../api";
 import { useUi } from "../store";
+import { LANGUAGES, setLanguage, type Language } from "../i18n";
 import { feedAvatar, feedColor, feedHost } from "../lib/feedMeta";
 import type { Feed } from "../types";
 import Icon, { type IconName } from "./Icon";
@@ -13,16 +16,17 @@ interface Props {
   onAddFeed: () => void;
 }
 
-const SECTIONS: { id: string; label: string; icon: IconName; color: string }[] = [
-  { id: "general", label: "通用", icon: "settings", color: "#7a756c" },
-  { id: "appearance", label: "外观", icon: "globe", color: "#bb6743" },
-  { id: "reading", label: "阅读", icon: "eye", color: "#3a4cb8" },
-  { id: "subscriptions", label: "订阅", icon: "rss", color: "#d97706" },
-  { id: "sync", label: "同步", icon: "refresh", color: "#2c8a3e" },
-  { id: "shortcuts", label: "快捷键", icon: "command", color: "#5a5fc4" },
-  { id: "notifications", label: "通知", icon: "inbox", color: "#a8501f" },
-  { id: "advanced", label: "高级", icon: "sort", color: "#4a4a4a" },
-  { id: "about", label: "关于", icon: "sparkle", color: "#111" },
+// `labelKey` holds an i18n key — resolved with t() at render time.
+const SECTIONS: { id: string; labelKey: string; icon: IconName; color: string }[] = [
+  { id: "general", labelKey: "settings.nav.general", icon: "settings", color: "#7a756c" },
+  { id: "appearance", labelKey: "settings.nav.appearance", icon: "globe", color: "#bb6743" },
+  { id: "reading", labelKey: "settings.nav.reading", icon: "eye", color: "#3a4cb8" },
+  { id: "subscriptions", labelKey: "settings.nav.subscriptions", icon: "rss", color: "#d97706" },
+  { id: "sync", labelKey: "settings.nav.sync", icon: "refresh", color: "#2c8a3e" },
+  { id: "shortcuts", labelKey: "settings.nav.shortcuts", icon: "command", color: "#5a5fc4" },
+  { id: "notifications", labelKey: "settings.nav.notifications", icon: "inbox", color: "#a8501f" },
+  { id: "advanced", labelKey: "settings.nav.advanced", icon: "sort", color: "#4a4a4a" },
+  { id: "about", labelKey: "settings.nav.about", icon: "sparkle", color: "#111" },
 ];
 
 export default function SettingsDialog({
@@ -31,6 +35,7 @@ export default function SettingsDialog({
   initialSection,
   onAddFeed,
 }: Props) {
+  const { t } = useTranslation();
   const [section, setSection] = useState(initialSection ?? "general");
   const feeds = useQuery({ queryKey: ["feeds"], queryFn: api.listFeeds });
 
@@ -49,15 +54,15 @@ export default function SettingsDialog({
   const feedCount = feeds.data?.length ?? 0;
 
   const subs: Record<string, string> = {
-    general: "订阅源刷新、默认行为、启动方式",
-    appearance: "主题、强调色、密度",
-    reading: "正文字体、字号、版面",
-    subscriptions: `${feedCount} 个订阅源`,
-    sync: "云端同步与第三方服务",
-    shortcuts: "键盘快捷键",
-    notifications: "新文章提醒与角标",
-    advanced: "缓存、网络、实验功能",
-    about: "版本信息与致谢",
+    general: t("settings.sub.general"),
+    appearance: t("settings.sub.appearance"),
+    reading: t("settings.sub.reading"),
+    subscriptions: t("settings.sub.subscriptions", { count: feedCount }),
+    sync: t("settings.sub.sync"),
+    shortcuts: t("settings.sub.shortcuts"),
+    notifications: t("settings.sub.notifications"),
+    advanced: t("settings.sub.advanced"),
+    about: t("settings.sub.about"),
   };
 
   return (
@@ -65,7 +70,7 @@ export default function SettingsDialog({
       <div className="settings-window" onClick={(e) => e.stopPropagation()}>
         <div className="settings-sidebar">
           <div className="settings-sidebar-title">
-            设置
+            {t("settings.title")}
             <span className="badge">⌘,</span>
           </div>
           {SECTIONS.map((s) => (
@@ -77,7 +82,7 @@ export default function SettingsDialog({
               <span className="nav-ico" style={{ background: s.color }}>
                 <Icon name={s.icon} size={11} color="#fff" />
               </span>
-              {s.label}
+              {t(s.labelKey)}
             </div>
           ))}
           <div className="settings-nav-spacer" />
@@ -86,15 +91,19 @@ export default function SettingsDialog({
 
         <div className="settings-content">
           <div className="settings-header">
-            <h2>{cur.label}</h2>
+            <h2>{t(cur.labelKey)}</h2>
             <span className="sub">{subs[section]}</span>
           </div>
-          <button className="settings-close" onClick={onClose} title="关闭 (Esc)">
+          <button
+            className="settings-close"
+            onClick={onClose}
+            title={t("settings.closeTitle")}
+          >
             <Icon name="x" size={15} />
           </button>
 
           <div className="settings-scroll">
-            {section === "general" && <GeneralSection />}
+            {section === "general" && <GeneralSection onToast={onToast} />}
             {section === "appearance" && <AppearanceSection />}
             {section === "reading" && <ReadingSection />}
             {section === "subscriptions" && (
@@ -236,12 +245,81 @@ function Slider({
   );
 }
 
+/** A toggle row backed by a persisted backend setting ("1" / "0"). */
+function SettingFlag({
+  settingKey,
+  label,
+  desc,
+  fallback = false,
+  onChanged,
+}: {
+  settingKey: string;
+  label: string;
+  desc?: string;
+  fallback?: boolean;
+  onChanged?: (v: boolean) => void;
+}) {
+  const [val, setVal] = useState(fallback);
+  useEffect(() => {
+    api
+      .getSetting(settingKey)
+      .then((v) => {
+        if (v != null && v !== "") setVal(v === "1");
+      })
+      .catch(() => {});
+  }, [settingKey]);
+  const change = (v: boolean) => {
+    setVal(v);
+    api.setSetting(settingKey, v ? "1" : "0").catch(() => {});
+    onChanged?.(v);
+  };
+  return (
+    <Row label={label} desc={desc}>
+      <Toggle checked={val} onChange={change} />
+    </Row>
+  );
+}
+
+/** Bytes → human-readable size. */
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/** Open-at-login toggle, backed by the OS via the autostart plugin. */
+function LaunchAtLogin({ onToast }: { onToast: (m: string) => void }) {
+  const { t } = useTranslation();
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    isEnabled().then(setOn).catch(() => {});
+  }, []);
+  const change = async (v: boolean) => {
+    try {
+      if (v) await enable();
+      else await disable();
+      setOn(v);
+    } catch (e) {
+      onToast(String(e));
+    }
+  };
+  return (
+    <Row
+      label={t("settings.general.launchAtLogin")}
+      desc={t("settings.general.launchAtLoginDesc")}
+    >
+      <Toggle checked={on} onChange={change} />
+    </Row>
+  );
+}
+
 /* ── general ─────────────────────────────────────────────── */
 // Auto-refresh "off" is stored as a year-long interval — the only lever the
 // backend scheduler exposes (it reads `refresh_interval_min`, minimum 5).
 const OFF_INTERVAL = 525600;
 
-function GeneralSection() {
+function GeneralSection({ onToast }: { onToast: (m: string) => void }) {
+  const { t } = useTranslation();
   const prefs = useUi((s) => s.prefs);
   const setPref = useUi((s) => s.setPref);
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -270,8 +348,11 @@ function GeneralSection() {
   return (
     <>
       <div className="settings-group">
-        <h3 className="settings-group-title">刷新</h3>
-        <Row label="自动刷新" desc="后台定期检查订阅源更新">
+        <h3 className="settings-group-title">{t("settings.general.refresh")}</h3>
+        <Row
+          label={t("settings.general.autoRefresh")}
+          desc={t("settings.general.autoRefreshDesc")}
+        >
           <Toggle
             checked={autoRefresh}
             onChange={(v) => {
@@ -281,13 +362,16 @@ function GeneralSection() {
           />
         </Row>
         {autoRefresh && (
-          <Row label="刷新间隔" desc="时间越短，电池消耗越大">
+          <Row
+            label={t("settings.general.refreshInterval")}
+            desc={t("settings.general.refreshIntervalDesc")}
+          >
             <Slider
               value={refreshMins}
               min={5}
               max={120}
               step={5}
-              unit=" 分钟"
+              unit={t("settings.general.minutesUnit")}
               onChange={(m) => {
                 setRefreshMins(m);
                 writeInterval(true, m);
@@ -297,14 +381,17 @@ function GeneralSection() {
         )}
       </div>
       <div className="settings-group">
-        <h3 className="settings-group-title">已读行为</h3>
-        <Row label="打开文章时标为已读">
+        <h3 className="settings-group-title">{t("settings.general.readBehavior")}</h3>
+        <Row label={t("settings.general.markReadOnOpen")}>
           <Toggle
             checked={prefs.markReadOnOpen}
             onChange={(v) => setPref({ markReadOnOpen: v })}
           />
         </Row>
-        <Row label="滚动到底部时标为已读" desc="适合快速浏览长列表">
+        <Row
+          label={t("settings.general.markReadOnScroll")}
+          desc={t("settings.general.markReadOnScrollDesc")}
+        >
           <Toggle
             checked={prefs.markReadOnScroll}
             onChange={(v) => setPref({ markReadOnScroll: v })}
@@ -312,20 +399,24 @@ function GeneralSection() {
         </Row>
       </div>
       <div className="settings-group">
-        <h3 className="settings-group-title">启动</h3>
-        <Row label="启动时打开" desc="下次打开应用时默认进入的视图">
+        <h3 className="settings-group-title">{t("settings.general.startup")}</h3>
+        <LaunchAtLogin onToast={onToast} />
+        <Row
+          label={t("settings.general.startupView")}
+          desc={t("settings.general.startupViewDesc")}
+        >
           <Select
             value={prefs.startupView}
             options={[
-              { value: "all", label: "全部文章" },
-              { value: "unread", label: "未读" },
-              { value: "starred", label: "星标" },
-              { value: "last", label: "上次的位置" },
+              { value: "all", label: t("settings.general.startupAll") },
+              { value: "unread", label: t("smart.unread") },
+              { value: "starred", label: t("smart.starred") },
+              { value: "last", label: t("settings.general.startupLast") },
             ]}
             onChange={(v) => setPref({ startupView: v })}
           />
         </Row>
-        <Row label="启动时隐藏已读">
+        <Row label={t("settings.general.hideReadOnStartup")}>
           <Toggle
             checked={prefs.hideReadOnStartup}
             onChange={(v) => setPref({ hideReadOnStartup: v })}
@@ -338,6 +429,7 @@ function GeneralSection() {
 
 /* ── appearance ──────────────────────────────────────────── */
 function AppearanceSection() {
+  const { t, i18n } = useTranslation();
   const theme = useUi((s) => s.theme);
   const setTheme = useUi((s) => s.setTheme);
   const accent = useUi((s) => s.accent);
@@ -350,27 +442,46 @@ function AppearanceSection() {
   const setPref = useUi((s) => s.setPref);
 
   const accents = [
-    { value: "clay", color: "#bb6743", label: "陶土" },
-    { value: "pine", color: "#3d7a5e", label: "松绿" },
-    { value: "indigo", color: "#5a5fc4", label: "靛蓝" },
-    { value: "ink", color: "#2b2620", label: "墨色" },
+    { value: "clay", color: "#bb6743", label: t("settings.appearance.accentClay") },
+    { value: "pine", color: "#3d7a5e", label: t("settings.appearance.accentPine") },
+    { value: "indigo", color: "#5a5fc4", label: t("settings.appearance.accentIndigo") },
+    { value: "ink", color: "#2b2620", label: t("settings.appearance.accentInk") },
   ] as const;
 
   return (
     <>
       <div className="settings-group">
-        <h3 className="settings-group-title">主题</h3>
-        <Row label="外观" desc="影响整个应用的明暗">
+        <h3 className="settings-group-title">{t("settings.appearance.language")}</h3>
+        <Row
+          label={t("settings.appearance.uiLanguage")}
+          desc={t("settings.appearance.languageDesc")}
+        >
+          <Select
+            value={i18n.language}
+            options={LANGUAGES.map((l) => ({ value: l.code, label: l.label }))}
+            onChange={(v) => setLanguage(v as Language)}
+          />
+        </Row>
+      </div>
+      <div className="settings-group">
+        <h3 className="settings-group-title">{t("settings.appearance.theme")}</h3>
+        <Row
+          label={t("settings.appearance.appearance")}
+          desc={t("settings.appearance.appearanceDesc")}
+        >
           <Segmented
             value={theme}
             options={[
-              { value: "light", label: "浅色" },
-              { value: "dark", label: "深色" },
+              { value: "light", label: t("settings.appearance.light") },
+              { value: "dark", label: t("settings.appearance.dark") },
             ]}
             onChange={setTheme}
           />
         </Row>
-        <Row label="强调色" desc="链接、星标和强调元素">
+        <Row
+          label={t("settings.appearance.accent")}
+          desc={t("settings.appearance.accentDesc")}
+        >
           <div className="s-swatches">
             {accents.map((a) => (
               <button
@@ -385,44 +496,53 @@ function AppearanceSection() {
         </Row>
       </div>
       <div className="settings-group">
-        <h3 className="settings-group-title">布局</h3>
-        <Row label="信息密度" desc="影响列表行高与间距">
+        <h3 className="settings-group-title">{t("settings.appearance.layout")}</h3>
+        <Row
+          label={t("settings.appearance.density")}
+          desc={t("settings.appearance.densityDesc")}
+        >
           <Segmented
             value={density}
             options={[
-              { value: "compact", label: "紧凑" },
-              { value: "cozy", label: "适中" },
-              { value: "spacious", label: "宽松" },
+              { value: "compact", label: t("settings.appearance.densityCompact") },
+              { value: "cozy", label: t("settings.appearance.densityCozy") },
+              { value: "spacious", label: t("settings.appearance.densitySpacious") },
             ]}
             onChange={setDensity}
           />
         </Row>
-        <Row label="文章列表样式">
+        <Row label={t("settings.appearance.listStyle")}>
           <Segmented
             value={viewMode}
             options={[
-              { value: "list", label: "列表" },
-              { value: "card", label: "卡片" },
+              { value: "list", label: t("settings.appearance.listStyleList") },
+              { value: "card", label: t("settings.appearance.listStyleCard") },
             ]}
             onChange={setViewMode}
           />
         </Row>
       </div>
       <div className="settings-group">
-        <h3 className="settings-group-title">细节</h3>
-        <Row label="侧栏显示未读计数">
+        <h3 className="settings-group-title">{t("settings.appearance.details")}</h3>
+        <Row label={t("settings.appearance.sidebarCounts")}>
           <Toggle
             checked={prefs.showSidebarCounts}
             onChange={(v) => setPref({ showSidebarCounts: v })}
           />
         </Row>
-        <Row label="文章卡片显示缩略图" desc="仅在卡片视图下生效">
+        <Row
+          label={t("settings.appearance.cardThumbs")}
+          desc={t("settings.appearance.cardThumbsDesc")}
+        >
           <Toggle
             checked={prefs.showCardThumbs}
             onChange={(v) => setPref({ showCardThumbs: v })}
           />
         </Row>
-        <Row label="减少动效" desc="关闭界面过渡与动画">
+        <Row
+          label={t("settings.appearance.reduceMotion")}
+          desc={t("settings.appearance.reduceMotionDesc")}
+        >
           <Toggle
             checked={prefs.reduceMotion}
             onChange={(v) => setPref({ reduceMotion: v })}
@@ -435,6 +555,7 @@ function AppearanceSection() {
 
 /* ── reading ─────────────────────────────────────────────── */
 function ReadingSection() {
+  const { t } = useTranslation();
   const useSerif = useUi((s) => s.useSerif);
   const setUseSerif = useUi((s) => s.setUseSerif);
   const readerSize = useUi((s) => s.readerSize);
@@ -446,18 +567,18 @@ function ReadingSection() {
   return (
     <>
       <div className="settings-group">
-        <h3 className="settings-group-title">字体</h3>
-        <Row label="正文字体">
+        <h3 className="settings-group-title">{t("settings.reading.font")}</h3>
+        <Row label={t("settings.reading.bodyFont")}>
           <Segmented
             value={useSerif ? "serif" : "sans"}
             options={[
-              { value: "serif", label: "衬线" },
-              { value: "sans", label: "无衬线" },
+              { value: "serif", label: t("settings.reading.serif") },
+              { value: "sans", label: t("settings.reading.sans") },
             ]}
             onChange={(v) => setUseSerif(v === "serif")}
           />
         </Row>
-        <Row label="字号">
+        <Row label={t("settings.reading.fontSize")}>
           <Slider
             value={readerSize}
             min={14}
@@ -466,7 +587,7 @@ function ReadingSection() {
             onChange={(v) => setReader({ readerSize: v })}
           />
         </Row>
-        <Row label="行高">
+        <Row label={t("settings.reading.lineHeight")}>
           <Slider
             value={readerLeading}
             min={130}
@@ -478,8 +599,8 @@ function ReadingSection() {
         </Row>
       </div>
       <div className="settings-group">
-        <h3 className="settings-group-title">版面</h3>
-        <Row label="正文最大宽度">
+        <h3 className="settings-group-title">{t("settings.reading.layout")}</h3>
+        <Row label={t("settings.reading.maxWidth")}>
           <Slider
             value={readerWidth}
             min={520}
@@ -489,7 +610,10 @@ function ReadingSection() {
             onChange={(v) => setReader({ readerWidth: v })}
           />
         </Row>
-        <Row label="显示预计阅读时间" desc="在文章信息栏显示估算阅读时长">
+        <Row
+          label={t("settings.reading.readingTime")}
+          desc={t("settings.reading.readingTimeDesc")}
+        >
           <Toggle
             checked={prefs.showReadingTime}
             onChange={(v) => setPref({ showReadingTime: v })}
@@ -510,6 +634,7 @@ function SubscriptionsSection({
   onToast: (m: string) => void;
   onAddFeed: () => void;
 }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
@@ -527,7 +652,7 @@ function SubscriptionsSection({
       a.download = "subscriptions.opml";
       a.click();
       URL.revokeObjectURL(url);
-      onToast("OPML 已导出到下载文件夹");
+      onToast(t("settings.subscriptions.opmlExported"));
     } catch (e) {
       onToast(String(e));
     }
@@ -537,7 +662,7 @@ function SubscriptionsSection({
     try {
       const n = await api.importOpml(await file.text());
       await qc.invalidateQueries();
-      onToast(`已从 OPML 导入 ${n} 个订阅源`);
+      onToast(t("settings.subscriptions.opmlImported", { count: n }));
     } catch (e) {
       onToast(String(e));
     }
@@ -548,7 +673,7 @@ function SubscriptionsSection({
       .deleteFeed(f.id)
       .then(() => {
         qc.invalidateQueries();
-        onToast(`已退订 ${f.title}`);
+        onToast(t("settings.subscriptions.unsubscribed", { title: f.title }));
       })
       .catch((e) => onToast(String(e)));
 
@@ -583,7 +708,7 @@ function SubscriptionsSection({
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="在订阅源中查找…"
+              placeholder={t("settings.subscriptions.searchPlaceholder")}
               style={{
                 flex: 1,
                 border: 0,
@@ -596,18 +721,20 @@ function SubscriptionsSection({
             />
           </div>
           <button className="s-btn" onClick={() => fileRef.current?.click()}>
-            <Icon name="arrow-down" size={12} /> 导入 OPML
+            <Icon name="arrow-down" size={12} /> {t("settings.subscriptions.importOpml")}
           </button>
           <button className="s-btn" onClick={exportOpml}>
-            <Icon name="arrow-up" size={12} /> 导出
+            <Icon name="arrow-up" size={12} /> {t("settings.subscriptions.export")}
           </button>
           <button className="s-btn primary" onClick={onAddFeed}>
-            <Icon name="plus" size={12} /> 添加
+            <Icon name="plus" size={12} /> {t("common.add")}
           </button>
         </div>
       </div>
       <div className="settings-group">
-        <h3 className="settings-group-title">订阅源 · {filtered.length} 个</h3>
+        <h3 className="settings-group-title">
+          {t("settings.subscriptions.feedsCount", { count: filtered.length })}
+        </h3>
         <div>
           {filtered.map((f) => (
             <div key={f.id} className="s-feed-row">
@@ -627,7 +754,7 @@ function SubscriptionsSection({
               <div className="actions">
                 <button
                   className="icon-btn"
-                  title="退订"
+                  title={t("settings.subscriptions.unsubscribe")}
                   onClick={() => unsubscribe(f)}
                 >
                   <Icon name="trash" size={13} />
@@ -639,7 +766,7 @@ function SubscriptionsSection({
             <div
               style={{ padding: "16px 4px", fontSize: 13, color: "var(--muted)" }}
             >
-              没有匹配的订阅源。
+              {t("settings.subscriptions.noMatch")}
             </div>
           )}
         </div>
@@ -650,53 +777,161 @@ function SubscriptionsSection({
 
 /* ── sync ────────────────────────────────────────────────── */
 function SyncSection({ onToast }: { onToast: (m: string) => void }) {
-  const services = [
-    { id: "icloud", name: "iCloud", color: "#0089E0", initial: "☁", desc: "在你的 Apple 设备之间同步订阅、星标和已读状态。", connected: true },
-    { id: "feedly", name: "Feedly", color: "#2BB24C", initial: "F", desc: "同步到 Feedly 账户。需要付费订阅以解锁全功能。", connected: false },
-    { id: "inoreader", name: "Inoreader", color: "#1976D2", initial: "I", desc: "同步到 Inoreader 账户。免费账户支持基础同步。", connected: false },
-    { id: "fresh", name: "FreshRSS", color: "#4A4A4A", initial: "⚡", desc: "自建 FreshRSS 服务器。需要填写 API 地址。", connected: false },
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const status = useQuery({
+    queryKey: ["freshrss-status"],
+    queryFn: api.freshrssStatus,
+  });
+  const [url, setUrl] = useState("");
+  const [user, setUser] = useState("");
+  const [pass, setPass] = useState("");
+  const [busy, setBusy] = useState(false);
+  const connected = status.data?.connected ?? false;
+
+  const connect = async () => {
+    if (!url.trim() || !user.trim()) return;
+    setBusy(true);
+    try {
+      await api.freshrssConnect(url.trim(), user.trim(), pass);
+      await qc.invalidateQueries({ queryKey: ["freshrss-status"] });
+      onToast(t("settings.sync.connected"));
+      setPass("");
+    } catch (e) {
+      onToast(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const disconnect = async () => {
+    setBusy(true);
+    try {
+      await api.freshrssDisconnect();
+      await qc.invalidateQueries({ queryKey: ["freshrss-status"] });
+      onToast(t("settings.sync.disconnected"));
+    } catch (e) {
+      onToast(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const syncNow = async () => {
+    setBusy(true);
+    try {
+      const n = await api.freshrssSync();
+      await qc.invalidateQueries();
+      onToast(t("settings.sync.syncDone", { count: n }));
+    } catch (e) {
+      onToast(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const unavailable = [
+    { name: "Feedly", initial: "F", color: "#2BB24C", reason: t("settings.sync.reasonOauth") },
+    { name: "Inoreader", initial: "I", color: "#1976D2", reason: t("settings.sync.reasonOauth") },
+    { name: "iCloud", initial: "☁", color: "#0089E0", reason: t("settings.sync.reasonEntitlements") },
   ];
+
   return (
     <>
       <div className="settings-group">
-        <h3 className="settings-group-title">同步服务</h3>
-        {services.map((s) => (
-          <div key={s.id} className="s-service">
+        <h3 className="settings-group-title">{t("settings.sync.freshrss")}</h3>
+        {connected ? (
+          <>
+            <div className="s-service">
+              <div className="logo" style={{ background: "#4A4A4A" }}>
+                ⚡
+              </div>
+              <div className="info">
+                <div className="title">FreshRSS</div>
+                <div className="desc">{status.data?.url}</div>
+              </div>
+              <span className="status on">{t("settings.sync.statusConnected")}</span>
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+              <button
+                className="s-btn primary"
+                onClick={syncNow}
+                disabled={busy}
+              >
+                <Icon name="refresh" size={12} />{" "}
+                {busy ? t("settings.sync.syncing") : t("settings.sync.syncNow")}
+              </button>
+              <button className="s-btn" onClick={disconnect} disabled={busy}>
+                {t("settings.sync.disconnect")}
+              </button>
+            </div>
+            <p
+              style={{
+                fontSize: 12,
+                color: "var(--muted)",
+                marginTop: 12,
+                lineHeight: 1.5,
+              }}
+            >
+              {t("settings.sync.syncHint")}
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="modal-hint" style={{ marginBottom: 14 }}>
+              {t("settings.sync.connectHint")}
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <input
+                className="modal-input"
+                style={{ margin: 0 }}
+                placeholder={t("settings.sync.serverPlaceholder")}
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+              />
+              <input
+                className="modal-input"
+                style={{ margin: 0 }}
+                placeholder={t("settings.sync.userPlaceholder")}
+                value={user}
+                onChange={(e) => setUser(e.target.value)}
+              />
+              <input
+                className="modal-input"
+                style={{ margin: 0 }}
+                type="password"
+                placeholder={t("settings.sync.passPlaceholder")}
+                value={pass}
+                onChange={(e) => setPass(e.target.value)}
+              />
+              <div>
+                <button
+                  className="s-btn primary"
+                  onClick={connect}
+                  disabled={busy || !url.trim() || !user.trim()}
+                >
+                  {busy ? t("settings.sync.connecting") : t("settings.sync.connect")}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="settings-group">
+        <h3 className="settings-group-title">{t("settings.sync.otherServices")}</h3>
+        {unavailable.map((s) => (
+          <div key={s.name} className="s-service" style={{ opacity: 0.6 }}>
             <div className="logo" style={{ background: s.color }}>
               {s.initial}
             </div>
             <div className="info">
               <div className="title">{s.name}</div>
-              <div className="desc">{s.desc}</div>
+              <div className="desc">{s.reason}</div>
             </div>
-            <span className={`status ${s.connected ? "on" : ""}`}>
-              {s.connected ? "已连接" : "未连接"}
-            </span>
-            <button
-              className="s-btn"
-              onClick={() =>
-                onToast(s.connected ? `已断开 ${s.name}` : `正在连接 ${s.name}…`)
-              }
-            >
-              {s.connected ? "断开" : "连接…"}
-            </button>
+            <span className="status">{t("settings.sync.statusUnavailable")}</span>
           </div>
         ))}
-      </div>
-      <div className="settings-group">
-        <h3 className="settings-group-title">同步内容</h3>
-        <Row label="同步星标">
-          <Toggle checked onChange={() => {}} />
-        </Row>
-        <Row label="同步稍后读">
-          <Toggle checked onChange={() => {}} />
-        </Row>
-        <Row label="同步已读状态">
-          <Toggle checked onChange={() => {}} />
-        </Row>
-        <Row label="同步设备间设置" desc="包括外观、阅读偏好、快捷键">
-          <Toggle checked={false} onChange={() => {}} />
-        </Row>
       </div>
     </>
   );
@@ -704,41 +939,42 @@ function SyncSection({ onToast }: { onToast: (m: string) => void }) {
 
 /* ── shortcuts ───────────────────────────────────────────── */
 function ShortcutsSection() {
+  const { t } = useTranslation();
   const groups = [
     {
-      title: "导航",
+      title: t("settings.shortcuts.navigation"),
       items: [
-        { desc: "下一篇", keys: ["J"] },
-        { desc: "上一篇", keys: ["K"] },
-        { desc: "在浏览器中打开", keys: ["O"] },
-        { desc: "标为已读 / 未读", keys: ["U"] },
-        { desc: "退出焦点 / 关闭抽屉", keys: ["Esc"] },
+        { desc: t("settings.shortcuts.nextArticle"), keys: ["J"] },
+        { desc: t("settings.shortcuts.prevArticle"), keys: ["K"] },
+        { desc: t("settings.shortcuts.openInBrowser"), keys: ["O"] },
+        { desc: t("settings.shortcuts.toggleRead"), keys: ["U"] },
+        { desc: t("settings.shortcuts.exitFocus"), keys: ["Esc"] },
       ],
     },
     {
-      title: "操作",
+      title: t("settings.shortcuts.actions"),
       items: [
-        { desc: "星标", keys: ["S"] },
-        { desc: "稍后读", keys: ["B"] },
-        { desc: "AI 摘要", keys: ["I"] },
-        { desc: "当前列表全标已读", keys: ["⇧", "A"] },
+        { desc: t("settings.shortcuts.star"), keys: ["S"] },
+        { desc: t("settings.shortcuts.readLater"), keys: ["B"] },
+        { desc: t("settings.shortcuts.aiSummary"), keys: ["I"] },
+        { desc: t("settings.shortcuts.markAllRead"), keys: ["⇧", "A"] },
       ],
     },
     {
-      title: "视图",
+      title: t("settings.shortcuts.view"),
       items: [
-        { desc: "焦点阅读", keys: ["F"] },
-        { desc: "隐藏已读", keys: ["V"] },
-        { desc: "切换深 / 浅色", keys: ["⇧", "D"] },
+        { desc: t("settings.shortcuts.focusReading"), keys: ["F"] },
+        { desc: t("settings.shortcuts.hideRead"), keys: ["V"] },
+        { desc: t("settings.shortcuts.toggleTheme"), keys: ["⇧", "D"] },
       ],
     },
     {
-      title: "全局",
+      title: t("settings.shortcuts.global"),
       items: [
-        { desc: "命令面板", keys: ["⌘", "K"] },
-        { desc: "刷新所有订阅源", keys: ["⌘", "R"] },
-        { desc: "添加订阅源", keys: ["A"] },
-        { desc: "设置", keys: ["⌘", ","] },
+        { desc: t("settings.shortcuts.commandPalette"), keys: ["⌘", "K"] },
+        { desc: t("settings.shortcuts.refreshAll"), keys: ["⌘", "R"] },
+        { desc: t("settings.shortcuts.addFeed"), keys: ["A"] },
+        { desc: t("settings.shortcuts.openSettings"), keys: ["⌘", ","] },
       ],
     },
   ];
@@ -769,46 +1005,36 @@ function ShortcutsSection() {
 
 /* ── notifications ───────────────────────────────────────── */
 function NotificationsSection() {
-  const [enabled, setEnabled] = useState(true);
-  const [showBadge, setShowBadge] = useState(true);
-  const [perFeed, setPerFeed] = useState("starred");
-  const [sound, setSound] = useState(false);
+  const { t } = useTranslation();
   return (
     <>
       <div className="settings-group">
-        <h3 className="settings-group-title">系统通知</h3>
-        <Row label="允许通知" desc="新文章到达时显示系统通知">
-          <Toggle checked={enabled} onChange={setEnabled} />
-        </Row>
-        <Row label="显示 Dock 角标计数">
-          <Toggle checked={showBadge} onChange={setShowBadge} />
-        </Row>
-        <Row label="通知声音">
-          <Toggle checked={sound} onChange={setSound} />
-        </Row>
+        <h3 className="settings-group-title">{t("settings.notifications.system")}</h3>
+        <SettingFlag
+          settingKey="notify_enabled"
+          fallback
+          label={t("settings.notifications.allow")}
+          desc={t("settings.notifications.allowDesc")}
+        />
+        <SettingFlag
+          settingKey="notify_badge"
+          fallback
+          label={t("settings.notifications.badge")}
+          desc={t("settings.notifications.badgeDesc")}
+        />
+        <SettingFlag
+          settingKey="notify_sound"
+          label={t("settings.notifications.sound")}
+          desc={t("settings.notifications.soundDesc")}
+        />
       </div>
       <div className="settings-group">
-        <h3 className="settings-group-title">通知哪些订阅源</h3>
-        <Row label="范围" desc="可在订阅源设置中单独开启或屏蔽">
-          <Select
-            value={perFeed}
-            options={[
-              { value: "all", label: "全部订阅源" },
-              { value: "starred", label: "仅已标记重要的订阅源" },
-              { value: "none", label: "不通知" },
-            ]}
-            onChange={setPerFeed}
-          />
-        </Row>
-      </div>
-      <div className="settings-group">
-        <h3 className="settings-group-title">勿扰</h3>
-        <Row label="夜间勿扰" desc="22:00 — 08:00 之间不显示通知">
-          <Toggle checked onChange={() => {}} />
-        </Row>
-        <Row label="专注模式时静音" desc="跟随系统专注模式">
-          <Toggle checked onChange={() => {}} />
-        </Row>
+        <h3 className="settings-group-title">{t("settings.notifications.dnd")}</h3>
+        <SettingFlag
+          settingKey="notify_dnd_night"
+          label={t("settings.notifications.dndNight")}
+          desc={t("settings.notifications.dndNightDesc")}
+        />
       </div>
     </>
   );
@@ -816,76 +1042,294 @@ function NotificationsSection() {
 
 /* ── advanced ────────────────────────────────────────────── */
 function AdvancedSection({ onToast }: { onToast: (m: string) => void }) {
-  const total = 412;
-  const articles = 218;
-  const images = 168;
-  const cache = total - articles - images;
-  const pct = (v: number) => `${((v / total) * 100).toFixed(0)}%`;
+  const { t } = useTranslation();
   return (
     <>
       <AiSettingsGroup onToast={onToast} />
+      <StorageGroup onToast={onToast} />
+      <NetworkGroup onToast={onToast} />
       <div className="settings-group">
-        <h3 className="settings-group-title">存储</h3>
-        <div className="settings-row">
-          <div className="settings-row-text" style={{ flex: 1 }}>
-            <div className="settings-row-label">数据占用</div>
-            <div className="s-bar">
-              <span style={{ width: pct(articles), background: "var(--accent)" }} />
-              <span
-                style={{ width: pct(images), background: "oklch(0.70 0.10 220)" }}
-              />
-              <span
-                style={{ width: pct(cache), background: "oklch(0.55 0.02 50)" }}
-              />
-            </div>
-            <div className="s-legend">
-              <span>
-                <i style={{ background: "var(--accent)" }} />
-                文章 {articles} MB
-              </span>
-              <span>
-                <i style={{ background: "oklch(0.70 0.10 220)" }} />
-                图片 {images} MB
-              </span>
-              <span>
-                <i style={{ background: "oklch(0.55 0.02 50)" }} />
-                缓存 {cache} MB
-              </span>
-            </div>
-          </div>
-        </div>
-        <Row label="清空图片缓存" desc="不会影响文章本身">
-          <button
-            className="s-btn"
-            onClick={() => onToast(`已清空 ${images} MB 图片缓存`)}
-          >
-            清空
-          </button>
-        </Row>
+        <h3 className="settings-group-title">{t("settings.advanced.experimental")}</h3>
+        <SettingFlag
+          settingKey="dedup_enabled"
+          label={t("settings.advanced.dedup")}
+          desc={t("settings.advanced.dedupDesc")}
+        />
       </div>
-      <div className="settings-group">
-        <h3 className="settings-group-title">网络</h3>
-        <Row label="代理">
-          <Select
-            value="system"
-            options={[
-              { value: "system", label: "跟随系统" },
-              { value: "none", label: "不使用代理" },
-              { value: "custom", label: "自定义…" },
-            ]}
-            onChange={() => {}}
+      <DangerZone onToast={onToast} />
+    </>
+  );
+}
+
+/** Storage panel — real database size, retention cleanup, vacuum. */
+function StorageGroup({ onToast }: { onToast: (m: string) => void }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const stats = useQuery({
+    queryKey: ["storage-stats"],
+    queryFn: api.storageStats,
+  });
+  const [retention, setRetention] = useState("forever");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api
+      .getSetting("retention_days")
+      .then((v) => {
+        if (v) setRetention(v);
+      })
+      .catch(() => {});
+  }, []);
+
+  const cleanup = async () => {
+    if (retention === "forever") {
+      onToast(t("settings.advanced.cleanupForever"));
+      return;
+    }
+    setBusy(true);
+    try {
+      const n = await api.cleanupArticles(Number(retention));
+      await qc.invalidateQueries();
+      onToast(
+        n > 0
+          ? t("settings.advanced.cleanupDone", { count: n })
+          : t("settings.advanced.cleanupNone"),
+      );
+    } catch (e) {
+      onToast(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const vacuum = async () => {
+    setBusy(true);
+    try {
+      await api.vacuumDb();
+      await qc.invalidateQueries({ queryKey: ["storage-stats"] });
+      onToast(t("settings.advanced.vacuumDone"));
+    } catch (e) {
+      onToast(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const s = stats.data;
+  return (
+    <div className="settings-group">
+      <h3 className="settings-group-title">{t("settings.advanced.storage")}</h3>
+      <Row
+        label={t("settings.advanced.dbUsage")}
+        desc={
+          s
+            ? t("settings.advanced.dbUsageDesc", {
+                articles: s.articleCount,
+                feeds: s.feedCount,
+              })
+            : t("settings.advanced.calculating")
+        }
+      >
+        <span className="s-value">{s ? formatBytes(s.dbBytes) : "—"}</span>
+      </Row>
+      <Row
+        label={t("settings.advanced.retention")}
+        desc={t("settings.advanced.retentionDesc")}
+      >
+        <Select
+          value={retention}
+          options={[
+            { value: "30", label: t("settings.advanced.retention30") },
+            { value: "90", label: t("settings.advanced.retention90") },
+            { value: "180", label: t("settings.advanced.retention180") },
+            { value: "forever", label: t("settings.advanced.retentionForever") },
+          ]}
+          onChange={(v) => {
+            setRetention(v);
+            api.setSetting("retention_days", v).catch(() => {});
+          }}
+        />
+      </Row>
+      <Row
+        label={t("settings.advanced.cleanupNow")}
+        desc={t("settings.advanced.cleanupNowDesc")}
+      >
+        <button className="s-btn" onClick={cleanup} disabled={busy}>
+          {t("settings.advanced.cleanup")}
+        </button>
+      </Row>
+      <Row
+        label={t("settings.advanced.vacuum")}
+        desc={t("settings.advanced.vacuumDesc")}
+      >
+        <button className="s-btn" onClick={vacuum} disabled={busy}>
+          {t("settings.advanced.compress")}
+        </button>
+      </Row>
+    </div>
+  );
+}
+
+/** Network panel — proxy, fetch concurrency, request timeout. */
+function NetworkGroup({ onToast }: { onToast: (m: string) => void }) {
+  const { t } = useTranslation();
+  const [proxy, setProxy] = useState("system");
+  const [customProxy, setCustomProxy] = useState("");
+  const [concurrency, setConcurrency] = useState(6);
+  const [timeoutSec, setTimeoutSec] = useState(30);
+
+  useEffect(() => {
+    Promise.all([
+      api.getSetting("net_proxy"),
+      api.getSetting("net_concurrency"),
+      api.getSetting("net_timeout_sec"),
+    ])
+      .then(([p, c, t]) => {
+        if (p === "system" || p === "none") setProxy(p);
+        else if (p) {
+          setProxy("custom");
+          setCustomProxy(p);
+        }
+        if (c) setConcurrency(Number(c));
+        if (t) setTimeoutSec(Number(t));
+      })
+      .catch(() => {});
+  }, []);
+
+  const saveProxy = (mode: string, custom: string) => {
+    const value = mode === "custom" ? custom : mode;
+    api
+      .setSetting("net_proxy", value)
+      .then(() => api.applyNetworkSettings())
+      .then(() => onToast(t("settings.advanced.proxyApplied")))
+      .catch((e) => onToast(String(e)));
+  };
+
+  return (
+    <div className="settings-group">
+      <h3 className="settings-group-title">{t("settings.advanced.network")}</h3>
+      <Row label={t("settings.advanced.proxy")}>
+        <Select
+          value={proxy}
+          options={[
+            { value: "system", label: t("settings.advanced.proxySystem") },
+            { value: "none", label: t("settings.advanced.proxyNone") },
+            { value: "custom", label: t("settings.advanced.proxyCustom") },
+          ]}
+          onChange={(v) => {
+            setProxy(v);
+            if (v !== "custom") saveProxy(v, "");
+          }}
+        />
+      </Row>
+      {proxy === "custom" && (
+        <Row
+          label={t("settings.advanced.proxyAddress")}
+          desc={t("settings.advanced.proxyAddressDesc")}
+        >
+          <input
+            className="s-text-input"
+            value={customProxy}
+            placeholder="http://host:port"
+            onChange={(e) => setCustomProxy(e.target.value)}
+            onBlur={() => saveProxy("custom", customProxy)}
           />
         </Row>
-        <Row label="并发请求数" desc="一次最多同时刷新几个订阅源">
-          <Slider value={6} min={1} max={16} onChange={() => {}} />
-        </Row>
-      </div>
-    </>
+      )}
+      <Row
+        label={t("settings.advanced.concurrency")}
+        desc={t("settings.advanced.concurrencyDesc")}
+      >
+        <Slider
+          value={concurrency}
+          min={1}
+          max={16}
+          onChange={(v) => {
+            setConcurrency(v);
+            api.setSetting("net_concurrency", String(v)).catch(() => {});
+          }}
+        />
+      </Row>
+      <Row label={t("settings.advanced.timeout")}>
+        <Slider
+          value={timeoutSec}
+          min={5}
+          max={120}
+          step={5}
+          unit={t("settings.advanced.secondsUnit")}
+          onChange={(v) => {
+            setTimeoutSec(v);
+            api
+              .setSetting("net_timeout_sec", String(v))
+              .then(() => api.applyNetworkSettings())
+              .catch(() => {});
+          }}
+        />
+      </Row>
+    </div>
+  );
+}
+
+/** Danger zone — reset settings, wipe all local data. */
+function DangerZone({ onToast }: { onToast: (m: string) => void }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const resetAll = async () => {
+    if (!window.confirm(t("settings.advanced.resetConfirm"))) return;
+    try {
+      await api.resetSettings();
+      for (const k of Object.keys(localStorage)) {
+        if (
+          k.startsWith("pref.") ||
+          [
+            "theme", "accent", "density", "viewMode", "useSerif",
+            "readerSize", "readerLeading", "readerWidth", "collapsedFolders",
+          ].includes(k)
+        ) {
+          localStorage.removeItem(k);
+        }
+      }
+      onToast(t("settings.advanced.resetDone"));
+      setTimeout(() => location.reload(), 900);
+    } catch (e) {
+      onToast(String(e));
+    }
+  };
+  const clearData = async () => {
+    if (!window.confirm(t("settings.advanced.clearConfirm"))) return;
+    try {
+      await api.clearAllData();
+      await qc.invalidateQueries();
+      onToast(t("settings.advanced.clearDone"));
+    } catch (e) {
+      onToast(String(e));
+    }
+  };
+  return (
+    <div className="settings-group">
+      <h3 className="settings-group-title">{t("settings.advanced.dangerZone")}</h3>
+      <Row
+        label={t("settings.advanced.resetSettings")}
+        desc={t("settings.advanced.resetSettingsDesc")}
+      >
+        <button className="s-btn" onClick={resetAll}>
+          {t("settings.advanced.reset")}
+        </button>
+      </Row>
+      <Row
+        label={t("settings.advanced.clearData")}
+        desc={t("settings.advanced.clearDataDesc")}
+      >
+        <button className="s-btn danger" onClick={clearData}>
+          {t("settings.advanced.clear")}
+        </button>
+      </Row>
+    </div>
   );
 }
 
 /** Real AI provider configuration — backing the AI summary feature. */
 function AiSettingsGroup({ onToast }: { onToast: (m: string) => void }) {
+  const { t } = useTranslation();
   const [provider, setProvider] = useState<"anthropic" | "openai">("anthropic");
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState("");
@@ -915,17 +1359,22 @@ function AiSettingsGroup({ onToast }: { onToast: (m: string) => void }) {
   const save = (key: string, value: string, label: string) => {
     api
       .setSetting(key, value)
-      .then(() => onToast(`${label}已保存`))
+      .then(() => onToast(t("settings.advanced.aiSaved", { label })))
       .catch((e) => onToast(String(e)));
   };
 
   const placeholder =
-    provider === "openai" ? "gpt-4.1-mini（默认）" : "claude-sonnet-4-6（默认）";
+    provider === "openai"
+      ? t("settings.advanced.aiModelPlaceholderOpenai")
+      : t("settings.advanced.aiModelPlaceholderAnthropic");
 
   return (
     <div className="settings-group">
-      <h3 className="settings-group-title">AI 摘要</h3>
-      <Row label="服务商" desc="用于生成文章摘要的大模型提供方">
+      <h3 className="settings-group-title">{t("settings.advanced.aiSummary")}</h3>
+      <Row
+        label={t("settings.advanced.aiProvider")}
+        desc={t("settings.advanced.aiProviderDesc")}
+      >
         <Select
           value={provider}
           options={[
@@ -934,11 +1383,14 @@ function AiSettingsGroup({ onToast }: { onToast: (m: string) => void }) {
           ]}
           onChange={(v) => {
             setProvider(v);
-            save("ai_provider", v, "AI 服务商");
+            save("ai_provider", v, t("settings.advanced.aiProviderLabel"));
           }}
         />
       </Row>
-      <Row label="API Key" desc="密钥仅保存在本地数据库，不会上传">
+      <Row
+        label={t("settings.advanced.aiApiKey")}
+        desc={t("settings.advanced.aiApiKeyDesc")}
+      >
         <input
           className="s-text-input"
           type="password"
@@ -948,12 +1400,15 @@ function AiSettingsGroup({ onToast }: { onToast: (m: string) => void }) {
           onBlur={() => {
             if (apiKey !== savedKey.current) {
               savedKey.current = apiKey;
-              save("ai_api_key", apiKey, "API Key");
+              save("ai_api_key", apiKey, t("settings.advanced.aiApiKeyLabel"));
             }
           }}
         />
       </Row>
-      <Row label="模型" desc="留空则使用该服务商的默认模型">
+      <Row
+        label={t("settings.advanced.aiModel")}
+        desc={t("settings.advanced.aiModelDesc")}
+      >
         <input
           className="s-text-input"
           type="text"
@@ -963,7 +1418,7 @@ function AiSettingsGroup({ onToast }: { onToast: (m: string) => void }) {
           onBlur={() => {
             if (model !== savedModel.current) {
               savedModel.current = model;
-              save("ai_model", model, "AI 模型");
+              save("ai_model", model, t("settings.advanced.aiModelLabel"));
             }
           }}
         />
@@ -974,20 +1429,21 @@ function AiSettingsGroup({ onToast }: { onToast: (m: string) => void }) {
 
 /* ── about ───────────────────────────────────────────────── */
 function AboutSection() {
+  const { t } = useTranslation();
   return (
     <div className="s-about">
       <div className="mark">
         <Icon name="rss" size={32} color="#fff" />
       </div>
       <h1 className="app-name">Lumen</h1>
-      <p className="tagline">一个安静、纯粹的 RSS 阅读器</p>
+      <p className="tagline">{t("settings.about.tagline")}</p>
       <div className="version">Version 0.1.0 · macOS</div>
       <p className="credits">
-        Inter Tight by Rasmus Andersson · Newsreader by Production Type
+        {t("settings.about.creditsFonts")}
         <br />
-        中文显示由 PingFang SC 渲染 · 强调色取自 OKLCH 色彩空间
+        {t("settings.about.creditsRender")}
         <br />
-        感谢所有维护开放标准的人 — RSS 让独立写作仍然可达。
+        {t("settings.about.creditsThanks")}
       </p>
     </div>
   );

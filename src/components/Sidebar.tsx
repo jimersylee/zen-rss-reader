@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import * as api from "../api";
 import { useUi } from "../store";
 import { feedAvatar, feedColor } from "../lib/feedMeta";
@@ -63,6 +64,7 @@ export default function Sidebar({
   refreshing,
   onToast,
 }: Props) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const query = useUi((s) => s.query);
   const select = useUi((s) => s.select);
@@ -108,8 +110,13 @@ export default function Sidebar({
     setDropFolder(null);
     if (!feed || feed.folderId === target) return;
     const folderName =
-      target == null ? "未分类" : allFolders.find((f) => f.id === target)?.name ?? "";
-    guard(api.moveFeed(feed.id, target), `已移动 ${feed.title} → ${folderName}`);
+      target == null
+        ? t("sidebar.uncategorized")
+        : allFolders.find((f) => f.id === target)?.name ?? "";
+    guard(
+      api.moveFeed(feed.id, target),
+      t("sidebar.toastMoved", { feed: feed.title, folder: folderName }),
+    );
   };
 
   // ── feed / folder context menus ──
@@ -118,40 +125,53 @@ export default function Sidebar({
       .filter((fo) => fo.id !== f.folderId)
       .map((fo) => ({
         icon: "folder" as const,
-        label: `移动到「${fo.name}」`,
-        onClick: () => guard(api.moveFeed(f.id, fo.id), `已移动到 ${fo.name}`),
+        label: t("sidebar.moveToFolder", { folder: fo.name }),
+        onClick: () =>
+          guard(
+            api.moveFeed(f.id, fo.id),
+            t("sidebar.toastMovedTo", { folder: fo.name }),
+          ),
       }));
     if (f.folderId != null)
       moves.push({
         icon: "folder",
-        label: "移出文件夹",
-        onClick: () => guard(api.moveFeed(f.id, null), "已移出文件夹"),
+        label: t("sidebar.moveOutOfFolder"),
+        onClick: () =>
+          guard(api.moveFeed(f.id, null), t("sidebar.toastMovedOut")),
       });
     return [
       {
         icon: "check-all",
-        label: "全部标为已读",
+        label: t("sidebar.markAllRead"),
         onClick: () =>
-          guard(api.markAllRead({ kind: "feed", value: f.id }), "已全部标为已读"),
+          guard(
+            api.markAllRead({ kind: "feed", value: f.id }),
+            t("sidebar.toastMarkedAllRead"),
+          ),
       },
       {
         icon: "settings",
-        label: "重命名…",
+        label: t("sidebar.renameMenu"),
         onClick: () =>
           setPrompt({
-            title: "重命名订阅源",
+            title: t("sidebar.renameFeedTitle"),
             initial: f.title,
-            placeholder: "订阅源名称",
-            onSubmit: (v) => guard(api.renameFeed(f.id, v), "已重命名"),
+            placeholder: t("sidebar.feedNamePlaceholder"),
+            onSubmit: (v) =>
+              guard(api.renameFeed(f.id, v), t("sidebar.toastRenamed")),
           }),
       },
       ...(moves.length ? [{ separator: true } as MenuEntry, ...moves] : []),
       { separator: true },
       {
         icon: "trash",
-        label: "退订",
+        label: t("sidebar.unsubscribe"),
         danger: true,
-        onClick: () => guard(api.deleteFeed(f.id), `已退订 ${f.title}`),
+        onClick: () =>
+          guard(
+            api.deleteFeed(f.id),
+            t("sidebar.toastUnsubscribed", { feed: f.title }),
+          ),
       },
     ];
   };
@@ -159,27 +179,32 @@ export default function Sidebar({
   const folderMenu = (folder: Folder): MenuEntry[] => [
     {
       icon: "check-all",
-      label: "全部标为已读",
+      label: t("sidebar.markAllRead"),
       onClick: () =>
-        guard(api.markAllRead({ kind: "folder", value: folder.id }), "已全部标为已读"),
+        guard(
+          api.markAllRead({ kind: "folder", value: folder.id }),
+          t("sidebar.toastMarkedAllRead"),
+        ),
     },
     {
       icon: "settings",
-      label: "重命名…",
+      label: t("sidebar.renameMenu"),
       onClick: () =>
         setPrompt({
-          title: "重命名文件夹",
+          title: t("sidebar.renameFolderTitle"),
           initial: folder.name,
-          placeholder: "文件夹名称",
-          onSubmit: (v) => guard(api.renameFolder(folder.id, v), "已重命名"),
+          placeholder: t("sidebar.folderNamePlaceholder"),
+          onSubmit: (v) =>
+            guard(api.renameFolder(folder.id, v), t("sidebar.toastRenamed")),
         }),
     },
     { separator: true },
     {
       icon: "trash",
-      label: "删除文件夹",
+      label: t("sidebar.deleteFolder"),
       danger: true,
-      onClick: () => guard(api.deleteFolder(folder.id), "已删除文件夹"),
+      onClick: () =>
+        guard(api.deleteFolder(folder.id), t("sidebar.toastFolderDeleted")),
     },
   ];
 
@@ -222,45 +247,45 @@ export default function Sidebar({
 
       <div className="sidebar-search" onClick={onSearchClick}>
         <Icon name="search" size={13} />
-        <span>搜索文章</span>
+        <span>{t("sidebar.searchArticles")}</span>
         <kbd>⌘K</kbd>
       </div>
 
       <div className="sidebar-scroll">
         <div className="sb-section-title">
-          <span>资料库</span>
+          <span>{t("sidebar.library")}</span>
         </div>
         <SbItem
           icon="inbox"
-          label="全部文章"
+          label={t("smart.all")}
           active={isActive({ kind: "all" })}
-          onClick={() => select({ kind: "all" }, "全部文章")}
+          onClick={() => select({ kind: "all" }, t("smart.all"))}
         />
         <SbItem
           icon="unread"
-          label="未读"
+          label={t("smart.unread")}
           count={showCounts ? counts.data?.unread : undefined}
           active={isActive({ kind: "unread" })}
-          onClick={() => select({ kind: "unread" }, "未读")}
+          onClick={() => select({ kind: "unread" }, t("smart.unread"))}
         />
         <SbItem
           icon="star"
-          label="星标"
+          label={t("smart.starred")}
           count={showCounts ? counts.data?.starred : undefined}
           active={isActive({ kind: "starred" })}
-          onClick={() => select({ kind: "starred" }, "星标")}
+          onClick={() => select({ kind: "starred" }, t("smart.starred"))}
         />
         <SbItem
           icon="bookmark"
-          label="稍后读"
+          label={t("smart.readLater")}
           count={showCounts ? counts.data?.readLater : undefined}
           active={isActive({ kind: "readLater" })}
-          onClick={() => select({ kind: "readLater" }, "稍后读")}
+          onClick={() => select({ kind: "readLater" }, t("smart.readLater"))}
         />
 
         <div className="sb-section-title">
-          <span>订阅源</span>
-          <button onClick={onAddFeed} title="添加订阅源">
+          <span>{t("sidebar.feeds")}</span>
+          <button onClick={onAddFeed} title={t("sidebar.addFeed")}>
             <Icon name="plus" size={12} />
           </button>
         </div>
@@ -274,7 +299,7 @@ export default function Sidebar({
               lineHeight: 1.5,
             }}
           >
-            还没有订阅源。点击 + 添加一个。
+            {t("sidebar.emptyHint")}
           </div>
         )}
 
@@ -339,11 +364,11 @@ export default function Sidebar({
       </div>
 
       <div className="sb-footer">
-        <button title="添加订阅源 (A)" onClick={onAddFeed}>
+        <button title={t("sidebar.addFeedShortcut")} onClick={onAddFeed}>
           <Icon name="plus" size={14} />
         </button>
         <button
-          title="刷新所有 (⌘R)"
+          title={t("sidebar.refreshAll")}
           onClick={onRefresh}
           disabled={refreshing}
           className={refreshing ? "spinning" : ""}
@@ -351,13 +376,13 @@ export default function Sidebar({
           <Icon name="refresh" size={14} />
         </button>
         <button
-          title="OPML 导入 / 导出"
+          title={t("sidebar.opmlImportExport")}
           onClick={() => onOpenSettings("subscriptions")}
         >
           <Icon name="open" size={14} />
         </button>
         <div className="spacer" />
-        <button title="设置 (⌘,)" onClick={() => onOpenSettings()}>
+        <button title={t("sidebar.settings")} onClick={() => onOpenSettings()}>
           <Icon name="settings" size={14} />
         </button>
       </div>

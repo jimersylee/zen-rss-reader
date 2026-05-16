@@ -3,6 +3,12 @@
 // relative / absolute time formatting the prototype shows.
 
 import type { Feed } from "../types";
+import i18n from "../i18n";
+
+/** Maps the active app language to a BCP-47 locale for date formatting. */
+function dateLocale(): string {
+  return { zh: "zh-CN", en: "en-US", ja: "ja-JP" }[i18n.language] ?? "en-US";
+}
 
 const PALETTE = [
   "#7c5cff", "#2c8a3e", "#0a6bd4", "#d23a8b", "#a8501f", "#ff6600",
@@ -44,11 +50,11 @@ export function relTime(iso: string | null): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   const mins = (Date.now() - d.getTime()) / 60000;
-  if (mins < 1) return "刚刚";
+  if (mins < 1) return i18n.t("common.justNow");
   if (mins < 60) return `${Math.floor(mins)}m`;
   if (mins < 1440) return `${Math.floor(mins / 60)}h`;
   if (mins < 1440 * 7) return `${Math.floor(mins / 1440)}d`;
-  return d.toLocaleDateString("zh-CN", { month: "long", day: "numeric" });
+  return d.toLocaleDateString(dateLocale(), { month: "long", day: "numeric" });
 }
 
 /** Long-form publication date for the reader byline. */
@@ -56,7 +62,7 @@ export function fullDate(iso: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("zh-CN", {
+  return d.toLocaleDateString(dateLocale(), {
     year: "numeric",
     month: "long",
     day: "numeric",

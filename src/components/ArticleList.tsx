@@ -1,6 +1,7 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import * as api from "../api";
 import { useUi } from "../store";
@@ -23,6 +24,7 @@ interface Hover {
 }
 
 export default function ArticleList({ onToast }: Props) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const actions = useArticleActions();
   const query = useUi((s) => s.query);
@@ -109,7 +111,11 @@ export default function ArticleList({ onToast }: Props) {
     try {
       const n = await api.markAllRead(query);
       await qc.invalidateQueries();
-      onToast(n > 0 ? `已将 ${n} 篇标为已读` : "没有需要标记的文章");
+      onToast(
+        n > 0
+          ? t("articleList.markedReadToast", { count: n })
+          : t("articleList.nothingToMark"),
+      );
     } catch (e) {
       onToast(String(e));
     }
@@ -128,12 +134,12 @@ export default function ArticleList({ onToast }: Props) {
   };
 
   const articleMenu = (a: ArticleSummary): MenuEntry[] => [
-    { icon: "open", label: "打开", shortcut: "⏎", onClick: () => openArticle(a.id) },
+    { icon: "open", label: t("articleList.menuOpen"), shortcut: "⏎", onClick: () => openArticle(a.id) },
     ...(a.url
       ? ([
           {
             icon: "globe",
-            label: "在浏览器中打开",
+            label: t("articleList.menuOpenInBrowser"),
             shortcut: "⌘O",
             onClick: () => openUrl(a.url!).catch(() => {}),
           },
@@ -142,19 +148,21 @@ export default function ArticleList({ onToast }: Props) {
     { separator: true },
     {
       icon: a.isStarred ? "star-fill" : "star",
-      label: a.isStarred ? "取消星标" : "星标",
+      label: a.isStarred ? t("articleList.menuUnstar") : t("articleList.menuStar"),
       shortcut: "S",
       onClick: () => actions.setStarred(a.id, !a.isStarred),
     },
     {
       icon: a.readLater ? "bookmark-fill" : "bookmark",
-      label: a.readLater ? "从稍后读移除" : "加入稍后读",
+      label: a.readLater
+        ? t("articleList.menuRemoveReadLater")
+        : t("articleList.menuAddReadLater"),
       shortcut: "B",
       onClick: () => actions.setReadLater(a.id, !a.readLater),
     },
     {
       icon: a.isRead ? "circle" : "check",
-      label: a.isRead ? "标为未读" : "标为已读",
+      label: a.isRead ? t("articleList.menuMarkUnread") : t("articleList.menuMarkRead"),
       shortcut: "U",
       onClick: () => actions.setRead(a.id, !a.isRead),
     },
@@ -163,51 +171,57 @@ export default function ArticleList({ onToast }: Props) {
           { separator: true },
           {
             icon: "copy",
-            label: "复制链接",
+            label: t("articleList.menuCopyLink"),
             onClick: () =>
               navigator.clipboard
                 .writeText(a.url!)
-                .then(() => onToast("链接已复制"), () => {}),
+                .then(() => onToast(t("articleList.linkCopied")), () => {}),
           },
         ] as MenuEntry[])
       : []),
   ];
 
   const vItems = virt.getVirtualItems();
-  const showCount = `${items.length}${browse.hasNextPage ? "+" : ""} 篇`;
+  const showCount = t("articleList.countArticles", {
+    count: items.length,
+    suffix: browse.hasNextPage ? "+" : "",
+  });
 
   return (
     <div className="list">
       <div className="list-header" data-tauri-drag-region>
         <h1 className="list-title">
-          {queryLabel}
-          <span className="count">{browse.isLoading ? "加载中…" : showCount}</span>
+          {/* Smart views re-translate live; feed/folder keep their own title. */}
+          {query.kind === "feed" || query.kind === "folder"
+            ? queryLabel
+            : t(`smart.${query.kind}`)}
+          <span className="count">{browse.isLoading ? t("common.loading") : showCount}</span>
         </h1>
         <div className="list-meta">
           <button
             className={`list-meta-btn ${!sortOldest ? "on" : ""}`}
             onClick={toggleSort}
-            title="排序"
+            title={t("articleList.sort")}
           >
             <Icon name={sortOldest ? "arrow-up" : "arrow-down"} size={12} />
-            {sortOldest ? "最旧优先" : "最新优先"}
+            {sortOldest ? t("articleList.oldestFirst") : t("articleList.newestFirst")}
           </button>
           <button
             className={`list-meta-btn ${unreadOnly ? "on" : ""}`}
             onClick={toggleUnreadOnly}
-            title="隐藏已读 (V)"
+            title={t("articleList.hideRead")}
           >
             <Icon name={unreadOnly ? "eye-off" : "eye"} size={12} />
-            {unreadOnly ? "仅未读" : "全部"}
+            {unreadOnly ? t("articleList.unreadOnly") : t("smart.all")}
           </button>
           <div style={{ flex: 1 }} />
           <button
             className="list-meta-btn"
             onClick={markAll}
-            title="全部标为已读 (⇧A)"
+            title={t("articleList.markAllRead")}
           >
             <Icon name="check-all" size={12} />
-            标为已读
+            {t("articleList.markRead")}
           </button>
         </div>
       </div>
@@ -230,7 +244,7 @@ export default function ArticleList({ onToast }: Props) {
             <div className="glyph">
               <Icon name="check" size={22} />
             </div>
-            <div>这里没有文章了 — 享受一下空白</div>
+            <div>{t("articleList.emptyState")}</div>
           </div>
         )}
 

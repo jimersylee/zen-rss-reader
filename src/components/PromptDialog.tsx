@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   title: string;
@@ -14,10 +15,11 @@ export default function PromptDialog({
   title,
   initialValue = "",
   placeholder,
-  confirmLabel = "确定",
+  confirmLabel,
   onSubmit,
   onClose,
 }: Props) {
+  const { t } = useTranslation();
   const [value, setValue] = useState(initialValue);
 
   const submit = () => {
@@ -45,10 +47,10 @@ export default function PromptDialog({
         />
         <div className="modal-actions">
           <button className="s-btn" onClick={onClose}>
-            取消
+            {t("common.cancel")}
           </button>
           <button className="s-btn primary" onClick={submit} disabled={!value.trim()}>
-            {confirmLabel}
+            {confirmLabel ?? t("common.confirm")}
           </button>
         </div>
       </div>
