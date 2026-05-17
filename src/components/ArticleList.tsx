@@ -188,9 +188,9 @@ export default function ArticleList({ onToast }: Props) {
   });
 
   return (
-    <div className="list">
+    <div className="list" role="region" aria-labelledby="article-list-title">
       <div className="list-header" data-tauri-drag-region>
-        <h1 className="list-title">
+        <h1 className="list-title" id="article-list-title">
           {/* Smart views re-translate live; feed/folder/tag keep their own title. */}
           {query.kind === "feed" ||
           query.kind === "folder" ||
