@@ -391,7 +391,10 @@ export default function Reader({ onToast }: Props) {
             />
           ) : (
             a.imageUrl &&
-            !heroBroken && (
+            !heroBroken &&
+            // Skip the hero when the body already embeds the same image, so
+            // feeds that repeat their lead image don't show it twice.
+            !body.includes(a.imageUrl) && (
               <img
                 src={a.imageUrl}
                 alt=""
