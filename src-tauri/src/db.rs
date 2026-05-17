@@ -739,11 +739,14 @@ pub fn mark_all_read(
     let bind: Vec<&dyn rusqlite::ToSql> =
         id.iter().map(|v| v as &dyn rusqlite::ToSql).collect();
 
-    // Queue the read change *before* flipping is_read, so `is_read = 0` still
-    // matches the affected set. Only articles the server knows (remote_id
-    // set) are pushable. The SELECT's WHERE also disambiguates ON CONFLICT.
+    // Queue + flip together: the sync-queue rows and the is_read change must
+    // commit atomically, or a mid-way failure leaves the queue claiming a
+    // read state the articles never reached. Queue *before* flipping so the
+    // `is_read = 0` filter still matches; the SELECT's WHERE also
+    // disambiguates the ON CONFLICT clause.
+    let tx = conn.unchecked_transaction()?;
     if enqueue_sync {
-        conn.execute(
+        tx.execute(
             &format!(
                 "INSERT INTO sync_queue(article_id, field, value)
                  SELECT id, 'read', 1 FROM articles
@@ -753,10 +756,11 @@ pub fn mark_all_read(
             bind.as_slice(),
         )?;
     }
-    let n = conn.execute(
+    let n = tx.execute(
         &format!("UPDATE articles SET is_read = 1 WHERE {pred} AND is_read = 0"),
         bind.as_slice(),
     )?;
+    tx.commit()?;
     Ok(n)
 }
 
@@ -819,13 +823,17 @@ pub fn set_tag_color(conn: &Connection, id: i64, color: &str) -> AppResult<()> {
 }
 
 /// Persist a new tag ordering — `ids` listed in the desired display order.
+/// The per-row updates run in one transaction so a mid-loop failure can't
+/// leave the tag list in a half-reordered state.
 pub fn reorder_tags(conn: &Connection, ids: &[i64]) -> AppResult<()> {
+    let tx = conn.unchecked_transaction()?;
     for (pos, id) in ids.iter().enumerate() {
-        conn.execute(
+        tx.execute(
             "UPDATE tags SET position = ?2 WHERE id = ?1",
             params![id, pos as i64],
         )?;
     }
+    tx.commit()?;
     Ok(())
 }
 
