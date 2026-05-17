@@ -10,6 +10,7 @@
     "remove": "移除",
     "done": "完成",
     "loading": "加载中…",
+    "retry": "重试",
     "justNow": "刚刚"
   },
   "tagPicker": {
@@ -33,7 +34,7 @@
   },
   "addFeed": {
     "title": "添加订阅源",
-    "hint": "粘贴一个订阅源地址，或任意网站地址 — Lumen 会自动发现它的 RSS。",
+    "hint": "粘贴一个订阅源地址，或任意网站地址 — Papr 会自动发现它的 RSS。",
     "noFolder": "不归入文件夹",
     "subscribe": "订阅",
     "adding": "添加中…",
@@ -74,7 +75,8 @@
     "unreadOnly": "仅未读",
     "markAllRead": "全部标为已读 (⇧A)",
     "markRead": "标为已读",
-    "emptyState": "这里没有文章了 — 享受一下空白"
+    "emptyState": "这里没有文章了 — 享受一下空白",
+    "loadError": "文章加载失败"
   },
   "commandPalette": {
     "actionMarkAllRead": "将当前列表全部标为已读",
@@ -162,7 +164,7 @@
       "markReadOnScrollDesc": "适合快速浏览长列表",
       "startup": "启动",
       "launchAtLogin": "开机自启动",
-      "launchAtLoginDesc": "登录系统后自动在后台启动 Lumen",
+      "launchAtLoginDesc": "登录系统后自动在后台启动 Papr",
       "startupView": "启动时打开",
       "startupViewDesc": "下次打开应用时默认进入的视图",
       "startupAll": "全部文章",
@@ -371,7 +373,7 @@
       "aiSaved": "{{label}}已保存"
     },
     "about": {
-      "tagline": "一个安静、纯粹的 RSS 阅读器",
+      "tagline": "把信息流，变回一份安静的读物",
       "creditsFonts": "Inter Tight by Rasmus Andersson · Newsreader by Production Type",
       "creditsRender": "中文显示由 PingFang SC 渲染 · 强调色取自 OKLCH 色彩空间",
       "creditsThanks": "感谢所有维护开放标准的人 — RSS 让独立写作仍然可达。"

@@ -9,7 +9,7 @@ export type IconName =
   | "open" | "share" | "more" | "refresh" | "settings" | "chevron-down"
   | "chevron-right" | "globe" | "focus" | "arrow-down" | "arrow-up"
   | "eye" | "eye-off" | "trash" | "mute" | "pin" | "x" | "command"
-  | "copy" | "list" | "grid" | "text"
+  | "copy" | "list" | "grid" | "text" | "alert"
   | "play" | "pause" | "skip-back" | "skip-fwd" | "headphones";
 
 interface Props {
@@ -125,6 +125,8 @@ export default function Icon({
       return <svg {...p}><rect x="3" y="3" width="8" height="8" rx="1.5" /><rect x="13" y="3" width="8" height="8" rx="1.5" /><rect x="3" y="13" width="8" height="8" rx="1.5" /><rect x="13" y="13" width="8" height="8" rx="1.5" /></svg>;
     case "text":
       return <svg {...p}><path d="M5 6h14M5 6V4.5M19 6V4.5M12 6v14M9 20h6" /></svg>;
+    case "alert":
+      return <svg {...p}><path d="M12 4L2.5 20.5h19zM12 10v5" /><circle cx="12" cy="17.6" r="0.4" fill={color} stroke="none" /></svg>;
     case "play":
       return <svg {...filled}><path d="M7 4.5v15l13-7.5z" /></svg>;
     case "pause":

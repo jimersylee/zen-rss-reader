@@ -241,7 +241,25 @@ export default function ArticleList({ onToast }: Props) {
           </div>
         )}
 
-        {!browse.isLoading && items.length === 0 && (
+        {/* A failed fetch must not masquerade as "all caught up". */}
+        {!browse.isLoading && browse.isError && items.length === 0 && (
+          <div className="empty" style={{ height: 240 }}>
+            <div className="glyph">
+              <Icon name="alert" size={22} />
+            </div>
+            <div>{t("articleList.loadError")}</div>
+            <button
+              className="empty-retry"
+              onClick={() => browse.refetch()}
+              disabled={browse.isFetching}
+            >
+              <Icon name="refresh" size={12} />
+              {t("common.retry")}
+            </button>
+          </div>
+        )}
+
+        {!browse.isLoading && !browse.isError && items.length === 0 && (
           <div className="empty" style={{ height: 240 }}>
             <div className="glyph">
               <Icon name="check" size={22} />

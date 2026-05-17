@@ -10,6 +10,7 @@
     "remove": "Remove",
     "done": "Done",
     "loading": "Loading…",
+    "retry": "Retry",
     "justNow": "just now"
   },
   "tagPicker": {
@@ -33,7 +34,7 @@
   },
   "addFeed": {
     "title": "Add feed",
-    "hint": "Paste a feed URL, or any website URL — Lumen will discover its RSS automatically.",
+    "hint": "Paste a feed URL, or any website URL — Papr will discover its RSS automatically.",
     "noFolder": "No folder",
     "subscribe": "Subscribe",
     "adding": "Adding…",
@@ -74,7 +75,8 @@
     "unreadOnly": "Unread only",
     "markAllRead": "Mark all as read (⇧A)",
     "markRead": "Mark as read",
-    "emptyState": "No articles here — enjoy the calm"
+    "emptyState": "No articles here — enjoy the calm",
+    "loadError": "Couldn't load articles"
   },
   "commandPalette": {
     "actionMarkAllRead": "Mark all in current list as read",
@@ -162,7 +164,7 @@
       "markReadOnScrollDesc": "Good for quickly skimming long lists",
       "startup": "Startup",
       "launchAtLogin": "Launch at login",
-      "launchAtLoginDesc": "Start Lumen automatically in the background after login",
+      "launchAtLoginDesc": "Start Papr automatically in the background after login",
       "startupView": "Open on startup",
       "startupViewDesc": "The view shown by default next time you open the app",
       "startupAll": "All articles",
@@ -371,7 +373,7 @@
       "aiSaved": "{{label}} saved"
     },
     "about": {
-      "tagline": "A quiet, pure RSS reader",
+      "tagline": "A quiet, paper-like RSS reader",
       "creditsFonts": "Inter Tight by Rasmus Andersson · Newsreader by Production Type",
       "creditsRender": "CJK text rendered with PingFang SC · accent colors from the OKLCH color space",
       "creditsThanks": "Thanks to everyone who maintains open standards — RSS keeps independent writing reachable."

@@ -10,6 +10,7 @@
     "remove": "削除",
     "done": "完了",
     "loading": "読み込み中…",
+    "retry": "再試行",
     "justNow": "たった今"
   },
   "tagPicker": {
@@ -33,7 +34,7 @@
   },
   "addFeed": {
     "title": "フィードを追加",
-    "hint": "フィードURL、または任意のウェブサイトURLを貼り付けてください — LumenがRSSを自動で検出します。",
+    "hint": "フィードURL、または任意のウェブサイトURLを貼り付けてください — PaprがRSSを自動で検出します。",
     "noFolder": "フォルダなし",
     "subscribe": "購読",
     "adding": "追加中…",
@@ -74,7 +75,8 @@
     "unreadOnly": "未読のみ",
     "markAllRead": "すべて既読にする (⇧A)",
     "markRead": "既読にする",
-    "emptyState": "記事はありません — ひと息どうぞ"
+    "emptyState": "記事はありません — ひと息どうぞ",
+    "loadError": "記事を読み込めませんでした"
   },
   "commandPalette": {
     "actionMarkAllRead": "現在のリストをすべて既読にする",
@@ -162,7 +164,7 @@
       "markReadOnScrollDesc": "長いリストをすばやく流し読みするのに便利です",
       "startup": "起動",
       "launchAtLogin": "ログイン時に起動",
-      "launchAtLoginDesc": "システムへのログイン後、Lumen をバックグラウンドで自動起動します",
+      "launchAtLoginDesc": "システムへのログイン後、Papr をバックグラウンドで自動起動します",
       "startupView": "起動時に開く",
       "startupViewDesc": "次回アプリを開いたときに既定で表示するビュー",
       "startupAll": "すべての記事",
@@ -371,7 +373,7 @@
       "aiSaved": "{{label}}を保存しました"
     },
     "about": {
-      "tagline": "静かで純粋な RSS リーダー",
+      "tagline": "静かな紙のような RSS リーダー",
       "creditsFonts": "Inter Tight by Rasmus Andersson · Newsreader by Production Type",
       "creditsRender": "CJK テキストは PingFang SC で表示 · アクセントカラーは OKLCH 色空間から採用",
       "creditsThanks": "オープン標準を支えるすべての人に感謝します — RSS は独立した執筆を今も身近に保ちます。"

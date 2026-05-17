@@ -734,6 +734,21 @@ button { font-family: inherit; }
   justify-content: center;
   color: var(--muted-2);
 }
+.empty-retry {
+  background: var(--panel);
+  border: 1px solid var(--hair);
+  color: var(--ink-2);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: background .12s, color .12s;
+}
+.empty-retry:hover { background: var(--hover); color: var(--ink); }
+.empty-retry:disabled { opacity: 0.5; cursor: default; }
 
 /* ====== Command palette ====== */
 .cp-backdrop {
