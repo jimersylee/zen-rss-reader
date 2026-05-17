@@ -146,6 +146,15 @@ static MIGRATIONS: LazyLock<Migrations> = LazyLock::new(|| {
         // idx_articles_sort, so the original published_at-only index is dead
         // weight on each insert. Drop it.
         M::up("DROP INDEX idx_articles_published;"),
+        // v8 — partial indexes mirroring idx_articles_unread for the other
+        // two smart-view flags, so the Starred / Read-later sidebar counts
+        // and list queries use a tiny index instead of a full table scan.
+        M::up(
+            "CREATE INDEX idx_articles_starred
+                 ON articles(is_starred) WHERE is_starred = 1;
+             CREATE INDEX idx_articles_readlater
+                 ON articles(read_later) WHERE read_later = 1;",
+        ),
     ])
 });
 
