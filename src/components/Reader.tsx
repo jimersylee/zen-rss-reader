@@ -445,37 +445,55 @@ function AIDrawer({
   const qc = useQueryClient();
   const [text, setText] = useState<string | null>(article.aiSummary);
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [retry, setRetry] = useState(0);
 
   // Reset to whatever the article already has when switching articles.
   useEffect(() => {
     setText(article.aiSummary);
     setBusy(false);
+    setFailed(false);
   }, [article.id]);
 
-  // Generate a summary the first time the drawer opens for an article.
+  // Generate a summary the first time the drawer opens for an article, and
+  // again whenever the user hits Retry. `failed` is in the guard so a failed
+  // run isn't silently re-attempted just because the drawer was reopened.
   useEffect(() => {
-    if (!open || busy || text) return;
+    if (!open || busy || text || failed) return;
     let cancelled = false;
     setBusy(true);
     setText("");
     api
       .aiSummarize(article.id, (ev) => {
         if (cancelled) return;
-        if (ev.type === "delta") setText((t) => (t ?? "") + ev.data);
-        else if (ev.type === "error") onToast(ev.data);
+        if (ev.type === "delta") setText((s) => (s ?? "") + ev.data);
+        else if (ev.type === "error") {
+          setFailed(true);
+          onToast(ev.data);
+        }
       })
       .then(() => {
         if (!cancelled) qc.invalidateQueries({ queryKey: ["article", article.id] });
       })
-      .catch((e) => !cancelled && onToast(errorText(e)))
+      .catch((e) => {
+        if (!cancelled) {
+          setFailed(true);
+          onToast(errorText(e));
+        }
+      })
       .finally(() => !cancelled && setBusy(false));
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, article.id]);
+  }, [open, article.id, retry]);
 
   const loading = busy && !text;
+  const onRetry = () => {
+    setText("");
+    setFailed(false);
+    setRetry((n) => n + 1);
+  };
 
   return (
     <div className={`ai-drawer ${open ? "open" : ""}`}>
@@ -497,7 +515,17 @@ function AIDrawer({
             <span style={{ marginLeft: 4 }}>{t("reader.aiReadingFullText")}</span>
           </div>
         )}
-        {text && (
+        {failed && !busy && (
+          <div className="ai-error">
+            <Icon name="alert" size={18} />
+            <span>{t("reader.aiError")}</span>
+            <button className="empty-retry" onClick={onRetry}>
+              <Icon name="refresh" size={12} />
+              {t("common.retry")}
+            </button>
+          </div>
+        )}
+        {text && !failed && (
           <>
             <div
               className="ai-prose"

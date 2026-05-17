@@ -124,6 +124,7 @@
     "noContent": "暂无正文内容。",
     "aiSummaryTitle": "AI 摘要",
     "aiReadingFullText": "正在阅读全文…",
+    "aiError": "无法生成摘要",
     "aiDisclaimer": "由本地模型生成 · 仅供参考 · 内容可能不准确"
   },
   "settings": {
