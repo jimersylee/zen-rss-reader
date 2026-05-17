@@ -380,6 +380,16 @@ fn truncate(s: &str, max: usize) -> String {
     s.chars().take(max).collect()
 }
 
+/// A system-prompt directive so AI output matches the UI language rather than
+/// defaulting to whatever language the source article happens to be in.
+fn response_language(conn: &rusqlite::Connection) -> &'static str {
+    match db::get_setting(conn, "language").ok().flatten().as_deref() {
+        Some("zh") => "\n\nAlways write your response in Simplified Chinese.",
+        Some("ja") => "\n\nAlways write your response in Japanese.",
+        _ => "\n\nAlways write your response in English.",
+    }
+}
+
 /// Stream an AI summary of one article; the full summary is also persisted.
 #[tauri::command]
 pub async fn ai_summarize(
@@ -387,17 +397,19 @@ pub async fn ai_summarize(
     article_id: i64,
     on_token: Channel<AiEvent>,
 ) -> AppResult<()> {
-    let (title, body, cfg) = {
+    let (title, body, cfg, lang) = {
         let conn = state.read().await;
         let (title, body) = db::article_text(&conn, article_id)?;
-        (title, body, load_ai_config(&conn)?)
+        (title, body, load_ai_config(&conn)?, response_language(&conn))
     };
-    let system = "You are a sharp news editor. Summarize the article in 3-4 \
-                  clear, factual sentences. Output only the summary prose.";
+    let system = format!(
+        "You are a sharp news editor. Summarize the article in 3-4 \
+         clear, factual sentences. Output only the summary prose.{lang}"
+    );
     let user = format!("Title: {title}\n\n{}", truncate(&body, 8000));
 
     let http = state.http();
-    let summary = ai::stream_chat(&http, &cfg, system, &user, &on_token).await?;
+    let summary = ai::stream_chat(&http, &cfg, &system, &user, &on_token).await?;
     if !summary.trim().is_empty() {
         let conn = state.db.lock().await;
         db::set_ai_summary(&conn, article_id, summary.trim())?;
@@ -413,7 +425,7 @@ pub async fn ai_ask(
     question: String,
     on_token: Channel<AiEvent>,
 ) -> AppResult<()> {
-    let (cfg, context) = {
+    let (cfg, context, lang) = {
         let conn = state.read().await;
         let cfg = load_ai_config(&conn)?;
         let hits =
@@ -428,13 +440,15 @@ pub async fn ai_ask(
                 truncate(&body, 1200)
             ));
         }
-        (cfg, context)
+        (cfg, context, response_language(&conn))
     };
 
-    let system = "You answer the user's question using only the provided \
-                  articles from their RSS subscriptions. Cite the article \
-                  titles you draw from. If the articles do not contain the \
-                  answer, say so plainly.";
+    let system = format!(
+        "You answer the user's question using only the provided \
+         articles from their RSS subscriptions. Cite the article \
+         titles you draw from. If the articles do not contain the \
+         answer, say so plainly.{lang}"
+    );
     let user = if context.trim().is_empty() {
         format!("No relevant articles were found.\n\nQuestion: {question}")
     } else {
@@ -442,7 +456,7 @@ pub async fn ai_ask(
     };
 
     let http = state.http();
-    ai::stream_chat(&http, &cfg, system, &user, &on_token).await?;
+    ai::stream_chat(&http, &cfg, &system, &user, &on_token).await?;
     Ok(())
 }
 
@@ -452,9 +466,13 @@ pub async fn ai_digest(
     state: State<'_, AppState>,
     on_token: Channel<AiEvent>,
 ) -> AppResult<()> {
-    let (cfg, articles) = {
+    let (cfg, articles, lang) = {
         let conn = state.read().await;
-        (load_ai_config(&conn)?, db::digest_source(&conn, 30)?)
+        (
+            load_ai_config(&conn)?,
+            db::digest_source(&conn, 30)?,
+            response_language(&conn),
+        )
     };
     if articles.is_empty() {
         return Err(AppError::code("noArticles"));
@@ -465,14 +483,16 @@ pub async fn ai_digest(
         corpus.push_str(&format!("- [{feed}] {title}: {}\n", truncate(text, 400)));
     }
 
-    let system = "You are the user's personal news briefer. From the recent \
-                  articles, write a crisp briefing: group related items into \
-                  2-4 themed sections with short headers, lead with what \
-                  matters most, and keep it skimmable. Plain prose, no preamble.";
+    let system = format!(
+        "You are the user's personal news briefer. From the recent \
+         articles, write a crisp briefing: group related items into \
+         2-4 themed sections with short headers, lead with what \
+         matters most, and keep it skimmable. Plain prose, no preamble.{lang}"
+    );
     let user = format!("Recent articles from my feeds:\n\n{corpus}");
 
     let http = state.http();
-    ai::stream_chat(&http, &cfg, system, &user, &on_token).await?;
+    ai::stream_chat(&http, &cfg, &system, &user, &on_token).await?;
     Ok(())
 }
 
