@@ -578,7 +578,7 @@ function AIDrawer({
           <Icon name="x" size={14} />
         </button>
       </div>
-      <div className="ai-body">
+      <div className="ai-body" aria-live="polite" aria-busy={busy}>
         {loading && (
           <div className="ai-loading">
             <span className="ai-dot" />
