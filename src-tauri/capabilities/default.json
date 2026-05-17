@@ -6,6 +6,7 @@
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
+    "core:window:allow-set-background-color",
     "opener:default",
     "opener:allow-open-url",
     "notification:default",

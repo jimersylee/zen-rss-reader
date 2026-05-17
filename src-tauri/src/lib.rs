@@ -61,20 +61,6 @@ pub fn run() {
 
             app.manage(AppState::new(conn, readers, http));
 
-            // ── macOS window vibrancy ─────────────────────────────────
-            #[cfg(target_os = "macos")]
-            {
-                use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = apply_vibrancy(
-                        &window,
-                        NSVisualEffectMaterial::Sidebar,
-                        None,
-                        None,
-                    );
-                }
-            }
-
             // ── Menu-bar tray (keeps the app resident for refreshes) ──
             tray::build(app.handle(), &lang, unread, latest_fetch.as_deref())?;
 

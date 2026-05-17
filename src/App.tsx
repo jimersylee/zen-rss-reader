@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import * as api from "./api";
 import { useUi } from "./store";
@@ -67,6 +68,12 @@ export default function App() {
     root.style.setProperty("--accent", dark ? a.dAccent : a.accent);
     root.style.setProperty("--accent-soft", dark ? a.dSoft : a.soft);
     root.style.setProperty("--accent-ink", dark ? a.dInk : a.ink);
+    // Keep the native window/webview background on the themed paper colour, so
+    // a live window resize never flashes a mismatched colour in the strip the
+    // webview has not repainted yet. Mirrors --paper in styles.css.
+    getCurrentWindow()
+      .setBackgroundColor(dark ? "#16140F" : "#F6F3EC")
+      .catch(() => {});
   }, [theme, accent, density]);
 
   // ── dismiss the boot splash once the app shell has mounted ──
