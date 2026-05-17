@@ -302,7 +302,10 @@ export default function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // `t` is listed so the shortcut toasts re-bind after a language change.
-  }, [qc, actions, cpOpen, doRefresh, markAllRead, showToast, t]);
+    // `cpOpen` is intentionally absent — the handler only ever calls
+    // setCpOpen (a functional update), so it doesn't depend on the value;
+    // listing it would needlessly re-bind the listener on every ⌘K.
+  }, [qc, actions, doRefresh, markAllRead, showToast, t]);
 
   return (
     <>
