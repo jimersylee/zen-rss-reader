@@ -1,8 +1,9 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../api";
 import { useArticleActions } from "../hooks/articleActions";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 import { errorText } from "../lib/errors";
 import Icon from "./Icon";
 
@@ -15,6 +16,8 @@ interface Props {
 export default function AddFeedDialog({ onClose, onToast }: Props) {
   const { t } = useTranslation();
   const actions = useArticleActions();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef);
   const [url, setUrl] = useState("");
   const [folderId, setFolderId] = useState<number | null>(null);
   const folders = useQuery({ queryKey: ["folders"], queryFn: api.listFolders });
@@ -48,7 +51,13 @@ export default function AddFeedDialog({ onClose, onToast }: Props) {
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h2>{t("addFeed.title")}</h2>
         <p className="modal-hint">{t("addFeed.hint")}</p>
         <input

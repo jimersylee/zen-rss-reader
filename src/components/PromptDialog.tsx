@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 interface Props {
   title: string;
@@ -21,6 +22,8 @@ export default function PromptDialog({
 }: Props) {
   const { t } = useTranslation();
   const [value, setValue] = useState(initialValue);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef);
 
   // Escape must close the dialog regardless of which control has focus —
   // an input-level handler dies as soon as the user tabs to a button.
@@ -44,7 +47,13 @@ export default function PromptDialog({
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h2>{title}</h2>
         <input
           className="modal-input"

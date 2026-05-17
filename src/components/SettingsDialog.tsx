@@ -5,6 +5,7 @@ import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import * as api from "../api";
 import { useUi } from "../store";
 import { useArticleActions } from "../hooks/articleActions";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 import { LANGUAGES, setLanguage, type Language } from "../i18n";
 import { feedHost } from "../lib/feedMeta";
 import { errorText } from "../lib/errors";
@@ -42,6 +43,8 @@ export default function SettingsDialog({
   const { t } = useTranslation();
   const [section, setSection] = useState(initialSection ?? "general");
   const feeds = useQuery({ queryKey: ["feeds"], queryFn: api.listFeeds });
+  const windowRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(windowRef);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -72,7 +75,13 @@ export default function SettingsDialog({
 
   return (
     <div className="settings-backdrop" onClick={onClose}>
-      <div className="settings-window" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="settings-window"
+        ref={windowRef}
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="settings-sidebar">
           <div className="settings-sidebar-title">
             {t("settings.title")}
