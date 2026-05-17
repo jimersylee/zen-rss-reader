@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../api";
 import { useUi } from "../store";
+import { useArticleActions } from "../hooks/articleActions";
 import { errorText } from "../lib/errors";
 import { tagColor } from "../lib/tagColors";
 import type { ArticleQuery, Feed, Folder, Tag } from "../types";
@@ -69,6 +70,7 @@ export default function Sidebar({
 }: Props) {
   const { t } = useTranslation();
   const qc = useQueryClient();
+  const actions = useArticleActions();
   const query = useUi((s) => s.query);
   const select = useUi((s) => s.select);
   const showCounts = useUi((s) => s.prefs.showSidebarCounts);
@@ -96,10 +98,13 @@ export default function Sidebar({
   const [tagDragId, setTagDragId] = useState<number | null>(null);
   const [tagOverId, setTagOverId] = useState<number | null>(null);
 
+  // Feed/folder/tag mutations only touch the article-bearing caches — a bare
+  // invalidateQueries() would also refetch AI summaries, settings and storage
+  // stats. refreshAfterBulk() invalidates just the relevant keys.
   const guard = (p: Promise<unknown>, ok: string) =>
     p
       .then(() => {
-        qc.invalidateQueries();
+        actions.refreshAfterBulk();
         onToast(ok);
       })
       .catch((e) => onToast(errorText(e)));
