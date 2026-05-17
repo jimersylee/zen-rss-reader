@@ -1587,13 +1587,23 @@ button { font-family: inherit; }
   display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;
 }
 
-/* reduce-motion preference — disables transitions / animations */
+/* reduce-motion — honoured both for the in-app preference and, by default,
+   for the OS-level setting (macOS "Reduce Motion" etc.). */
 [data-reduce-motion="true"] *,
 [data-reduce-motion="true"] *::before,
 [data-reduce-motion="true"] *::after {
   animation-duration: 0.001ms !important;
   animation-iteration-count: 1 !important;
   transition-duration: 0.001ms !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }
 
 /* settings: password-style field for the AI key */
