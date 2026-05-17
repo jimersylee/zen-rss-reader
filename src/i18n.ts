@@ -51,18 +51,25 @@ export function setLanguage(lang: Language): void {
   persistToBackend(lang);
 }
 
+const startupLang = detectLanguage();
+
 i18n.use(initReactI18next).init({
   resources: {
     zh: { translation: zh },
     en: { translation: en },
     ja: { translation: ja },
   },
-  lng: detectLanguage(),
+  lng: startupLang,
   fallbackLng: "en",
   interpolation: { escapeValue: false },
 });
 
+// Reflect the detected language onto <html lang> — index.html hardcodes a
+// default, so without this a non-zh user starts with the wrong lang attr
+// (it drives screen readers, :lang() rules and hyphenation).
+document.documentElement.lang = startupLang;
+
 // Sync the detected language to the backend on startup.
-persistToBackend(detectLanguage());
+persistToBackend(startupLang);
 
 export default i18n;
