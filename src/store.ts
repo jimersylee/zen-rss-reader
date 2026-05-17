@@ -20,6 +20,7 @@ export interface Prefs {
   showReadingTime: boolean;
   markReadOnOpen: boolean;
   markReadOnScroll: boolean;
+  autoExtract: boolean;
   startupView: StartupView;
   hideReadOnStartup: boolean;
 }
@@ -104,6 +105,7 @@ const PREF_KEYS: (keyof Prefs)[] = [
   "showReadingTime",
   "markReadOnOpen",
   "markReadOnScroll",
+  "autoExtract",
   "startupView",
   "hideReadOnStartup",
 ];
@@ -116,6 +118,7 @@ function loadPrefs(): Prefs {
     showReadingTime: ls.bool("pref.showReadingTime", true),
     markReadOnOpen: ls.bool("pref.markReadOnOpen", true),
     markReadOnScroll: ls.bool("pref.markReadOnScroll", false),
+    autoExtract: ls.bool("pref.autoExtract", false),
     startupView: ls.oneOf<StartupView>(
       "pref.startupView",
       ["all", "unread", "starred", "last"],

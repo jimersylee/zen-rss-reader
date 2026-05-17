@@ -223,7 +223,10 @@
       "layout": "Layout",
       "maxWidth": "Body max width",
       "readingTime": "Show estimated reading time",
-      "readingTimeDesc": "Show estimated reading time in the article info bar"
+      "readingTimeDesc": "Show estimated reading time in the article info bar",
+      "fulltext": "Full text",
+      "autoExtract": "Auto-extract full text",
+      "autoExtractDesc": "When opening a summary-only article, automatically fetch the full page content"
     },
     "subscriptions": {
       "searchPlaceholder": "Search feeds…",

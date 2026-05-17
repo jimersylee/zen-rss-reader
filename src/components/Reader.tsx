@@ -49,6 +49,7 @@ export default function Reader({ onToast }: Props) {
   const markReadOnOpen = useUi((s) => s.prefs.markReadOnOpen);
   const markReadOnScroll = useUi((s) => s.prefs.markReadOnScroll);
   const showReadingTime = useUi((s) => s.prefs.showReadingTime);
+  const autoExtract = useUi((s) => s.prefs.autoExtract);
 
   const [scrolled, setScrolled] = useState(false);
   const [showExtracted, setShowExtracted] = useState(true);
@@ -128,6 +129,22 @@ export default function Reader({ onToast }: Props) {
     },
     onError: (e) => onToast(errorText(e)),
   });
+
+  // With "auto-extract full text" on, a summary-only feed item is upgraded to
+  // the full page the moment it's opened, so the reader never shows a two-line
+  // stub. Skipped when the feed already carries the whole article, when there
+  // is no source URL to fetch, or once attempted for this article — so a
+  // failed fetch isn't retried on every re-render.
+  const autoExtractedRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!autoExtract || !a || !a.url || a.extractedHtml) return;
+    if (autoExtractedRef.current === a.id || extract.isPending) return;
+    const plain = (a.contentHtml || "").replace(/<[^>]+>/g, "").trim();
+    if (plain.length >= 800) return; // feed already delivers the full text
+    autoExtractedRef.current = a.id;
+    extract.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [a?.id, a?.extractedHtml, autoExtract]);
 
   const onScroll = () => {
     const el = scrollRef.current;

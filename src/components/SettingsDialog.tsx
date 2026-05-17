@@ -677,6 +677,18 @@ function ReadingSection() {
           />
         </Row>
       </div>
+      <div className="settings-group">
+        <h3 className="settings-group-title">{t("settings.reading.fulltext")}</h3>
+        <Row
+          label={t("settings.reading.autoExtract")}
+          desc={t("settings.reading.autoExtractDesc")}
+        >
+          <Toggle
+            checked={prefs.autoExtract}
+            onChange={(v) => setPref({ autoExtract: v })}
+          />
+        </Row>
+      </div>
     </>
   );
 }

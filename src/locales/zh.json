@@ -223,7 +223,10 @@
       "layout": "版面",
       "maxWidth": "正文最大宽度",
       "readingTime": "显示预计阅读时间",
-      "readingTimeDesc": "在文章信息栏显示估算阅读时长"
+      "readingTimeDesc": "在文章信息栏显示估算阅读时长",
+      "fulltext": "全文",
+      "autoExtract": "自动提取全文",
+      "autoExtractDesc": "打开只有摘要的文章时，自动抓取网页正文"
     },
     "subscriptions": {
       "searchPlaceholder": "在订阅源中查找…",
