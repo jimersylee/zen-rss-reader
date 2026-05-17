@@ -527,7 +527,12 @@ function AIDrawer({
   };
 
   return (
-    <div className={`ai-drawer ${open ? "open" : ""}`}>
+    <div
+      className={`ai-drawer ${open ? "open" : ""}`}
+      // When closed the drawer is only moved off-screen — `inert` keeps its
+      // close button and content out of the tab order and the a11y tree.
+      inert={!open}
+    >
       <div className="ai-head">
         <span className="accent-ico">
           <Icon name="sparkle-fill" size={15} />
