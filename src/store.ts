@@ -61,8 +61,6 @@ interface UiState {
   unreadOnly: boolean;
   /** Sort the list oldest-first instead of newest-first. */
   sortOldest: boolean;
-  /** Live keyword search text. */
-  search: string;
 
   // appearance preferences
   theme: Theme;
@@ -85,7 +83,6 @@ interface UiState {
   openArticle: (id: number | null) => void;
   toggleUnreadOnly: () => void;
   toggleSort: () => void;
-  setSearch: (s: string) => void;
 
   setTheme: (t: Theme) => void;
   setAccent: (a: Accent) => void;
@@ -134,7 +131,6 @@ export const useUi = create<UiState>((set) => ({
   selectedArticleId: null,
   unreadOnly: false,
   sortOldest: false,
-  search: "",
 
   theme: ls.oneOf<Theme>("theme", ["light", "dark"], "light"),
   accent: ls.oneOf<Accent>("accent", ["clay", "pine", "indigo", "ink"], "clay"),
@@ -158,12 +154,11 @@ export const useUi = create<UiState>((set) => ({
     // Remember the selection so the "open on startup: last view" preference
     // can restore it next launch.
     ls.set("lastView", JSON.stringify({ query, label }));
-    set({ query, queryLabel: label, selectedArticleId: null, search: "" });
+    set({ query, queryLabel: label, selectedArticleId: null });
   },
   openArticle: (id) => set({ selectedArticleId: id }),
   toggleUnreadOnly: () => set((s) => ({ unreadOnly: !s.unreadOnly })),
   toggleSort: () => set((s) => ({ sortOldest: !s.sortOldest })),
-  setSearch: (search) => set({ search }),
 
   setTheme: (theme) => { ls.set("theme", theme); set({ theme }); },
   setAccent: (accent) => { ls.set("accent", accent); set({ accent }); },
