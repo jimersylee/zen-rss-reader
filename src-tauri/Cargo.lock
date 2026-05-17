@@ -4408,6 +4408,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "dom_smoothie",
+ "ego-tree",
  "feed-rs",
  "log",
  "opml",
