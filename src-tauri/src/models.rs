@@ -149,8 +149,18 @@ pub enum ArticleQuery {
 }
 
 /// Live progress for a refresh run, streamed to the frontend over an ipc::Channel.
+//
+// `rename_all_fields` is required in addition to `rename_all`: the latter only
+// camelCases the variant names, not the fields inside struct variants — so
+// without it `feed_id` / `new_articles` would reach the frontend snake-cased,
+// mismatching the camelCase RefreshProgress type in src/types.ts.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase", tag = "event", content = "data")]
+#[serde(
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase",
+    tag = "event",
+    content = "data"
+)]
 pub enum RefreshProgress {
     Started { total: usize },
     FeedDone { feed_id: i64, new_articles: usize, error: Option<String> },
