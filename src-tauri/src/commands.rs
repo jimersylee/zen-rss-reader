@@ -277,7 +277,7 @@ pub async fn smart_counts(state: State<'_, AppState>) -> AppResult<SmartCounts> 
 #[tauri::command]
 pub async fn extract_fulltext(state: State<'_, AppState>, article_id: i64) -> AppResult<String> {
     let url = {
-        let conn = state.db.lock().await;
+        let conn = state.read().await;
         db::get_article(&conn, article_id)?
             .url
             .ok_or_else(|| AppError::code("noArticleUrl"))?
@@ -386,7 +386,7 @@ pub async fn ai_summarize(
     on_token: Channel<AiEvent>,
 ) -> AppResult<()> {
     let (title, body, cfg) = {
-        let conn = state.db.lock().await;
+        let conn = state.read().await;
         let (title, body) = db::article_text(&conn, article_id)?;
         (title, body, load_ai_config(&conn)?)
     };
@@ -412,7 +412,7 @@ pub async fn ai_ask(
     on_token: Channel<AiEvent>,
 ) -> AppResult<()> {
     let (cfg, context) = {
-        let conn = state.db.lock().await;
+        let conn = state.read().await;
         let cfg = load_ai_config(&conn)?;
         let hits =
             db::list_articles(&conn, &ArticleQuery::All, false, Some(&question), false, 6, 0)?;
@@ -451,7 +451,7 @@ pub async fn ai_digest(
     on_token: Channel<AiEvent>,
 ) -> AppResult<()> {
     let (cfg, articles) = {
-        let conn = state.db.lock().await;
+        let conn = state.read().await;
         (load_ai_config(&conn)?, db::digest_source(&conn, 30)?)
     };
     if articles.is_empty() {
