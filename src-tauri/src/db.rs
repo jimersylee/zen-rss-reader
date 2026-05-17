@@ -155,6 +155,11 @@ static MIGRATIONS: LazyLock<Migrations> = LazyLock::new(|| {
              CREATE INDEX idx_articles_readlater
                  ON articles(read_later) WHERE read_later = 1;",
         ),
+        // v9 — index the article URL. FreshRSS reconciliation matches remote
+        // items to local articles by URL (up to ~1000 lookups per sync) and
+        // the dedup check tests URL existence per inserted article; both
+        // full-scanned the table without this.
+        M::up("CREATE INDEX idx_articles_url ON articles(url);"),
     ])
 });
 
