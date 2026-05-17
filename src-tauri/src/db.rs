@@ -276,8 +276,12 @@ pub fn list_feeds(conn: &Connection) -> AppResult<Vec<Feed>> {
     Ok(rows)
 }
 
-/// All feeds that need fetching: (id, feed_url, etag, last_modified).
-pub fn feeds_to_refresh(conn: &Connection) -> AppResult<Vec<(i64, String, Option<String>, Option<String>)>> {
+/// A feed the scheduler should fetch: `(id, feed_url, etag, last_modified)` —
+/// the last two are the stored revalidators for a conditional GET.
+pub type FeedToRefresh = (i64, String, Option<String>, Option<String>);
+
+/// All feeds that need fetching.
+pub fn feeds_to_refresh(conn: &Connection) -> AppResult<Vec<FeedToRefresh>> {
     let mut stmt = conn.prepare("SELECT id, feed_url, etag, last_modified FROM feeds")?;
     let rows = stmt
         .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?

@@ -65,7 +65,7 @@ pub async fn notify_new_articles(app: &AppHandle, count: usize) {
         }
         if flag(&conn, "notify_dnd_night", false) {
             let hour = Local::now().hour();
-            if hour >= 22 || hour < 8 {
+            if !(8..22).contains(&hour) {
                 return;
             }
         }
