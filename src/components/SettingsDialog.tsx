@@ -226,14 +226,22 @@ function Slider({
   step = 1,
   unit = "",
   onChange,
+  onCommit,
 }: {
   value: number;
   min: number;
   max: number;
   step?: number;
   unit?: string;
-  onChange: (v: number) => void;
+  /** Fires on every drag tick — for cheap, live updates (e.g. reader preview). */
+  onChange?: (v: number) => void;
+  /** Fires once the drag/keypress settles — for costly side effects (a backend
+   *  write, an HTTP-client rebuild) that must not run ~20× across one drag. */
+  onCommit?: (v: number) => void;
 }) {
+  const [draft, setDraft] = useState(value);
+  // Follow external changes (async settings load, reset) when not mid-drag.
+  useEffect(() => setDraft(value), [value]);
   return (
     <>
       <input
@@ -242,11 +250,21 @@ function Slider({
         min={min}
         max={max}
         step={step}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
+        value={draft}
+        onChange={(e) => {
+          const v = Number(e.target.value);
+          setDraft(v);
+          onChange?.(v);
+        }}
+        onPointerUp={(e) =>
+          onCommit?.(Number((e.target as HTMLInputElement).value))
+        }
+        onKeyUp={(e) =>
+          onCommit?.(Number((e.target as HTMLInputElement).value))
+        }
       />
       <span className="s-value">
-        {value}
+        {draft}
         {unit}
       </span>
     </>
@@ -380,10 +398,8 @@ function GeneralSection({ onToast }: { onToast: (m: string) => void }) {
               max={120}
               step={5}
               unit={t("settings.general.minutesUnit")}
-              onChange={(m) => {
-                setRefreshMins(m);
-                writeInterval(true, m);
-              }}
+              onChange={setRefreshMins}
+              onCommit={(m) => writeInterval(true, m)}
             />
           </Row>
         )}
@@ -1249,10 +1265,10 @@ function NetworkGroup({ onToast }: { onToast: (m: string) => void }) {
           value={concurrency}
           min={1}
           max={16}
-          onChange={(v) => {
-            setConcurrency(v);
-            api.setSetting("net_concurrency", String(v)).catch(() => {});
-          }}
+          onChange={setConcurrency}
+          onCommit={(v) =>
+            api.setSetting("net_concurrency", String(v)).catch(() => {})
+          }
         />
       </Row>
       <Row label={t("settings.advanced.timeout")}>
@@ -1262,13 +1278,13 @@ function NetworkGroup({ onToast }: { onToast: (m: string) => void }) {
           max={120}
           step={5}
           unit={t("settings.advanced.secondsUnit")}
-          onChange={(v) => {
-            setTimeoutSec(v);
+          onChange={setTimeoutSec}
+          onCommit={(v) =>
             api
               .setSetting("net_timeout_sec", String(v))
               .then(() => api.applyNetworkSettings())
-              .catch(() => {});
-          }}
+              .catch(() => {})
+          }
         />
       </Row>
     </div>
