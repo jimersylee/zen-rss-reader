@@ -272,7 +272,9 @@ export default function Reader({ onToast }: Props) {
           onClick={() =>
             hasExtracted ? setShowExtracted((v) => !v) : extract.mutate()
           }
-          disabled={extract.isPending}
+          // Extraction needs the source URL; without one (and nothing
+          // extracted yet) the button can only error, so disable it.
+          disabled={extract.isPending || (!hasExtracted && !a.url)}
           title={hasExtracted ? t("reader.tbToggleFullText") : t("reader.tbExtractFullText")}
           aria-label={hasExtracted ? t("reader.tbToggleFullText") : t("reader.tbExtractFullText")}
           aria-pressed={hasExtracted ? showExtracted : undefined}
