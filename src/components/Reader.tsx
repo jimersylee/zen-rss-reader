@@ -56,6 +56,7 @@ export default function Reader({ onToast }: Props) {
   const [heroBroken, setHeroBroken] = useState(false);
   const [progress, setProgress] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   // Article id we already auto-marked read via scroll, so a flurry of scroll
   // events near the foot doesn't fire `setRead` repeatedly before the
   // optimistic cache patch lands.
@@ -94,6 +95,23 @@ export default function Reader({ onToast }: Props) {
     scrollMarkedRef.current = null;
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
   }, [id]);
+
+  // Hide article-body images that fail to load — a broken-image icon in the
+  // middle of an article is just noise. Runs whenever the body changes
+  // (article switch, extract toggle, extraction finishing).
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    el.querySelectorAll("img").forEach((img) => {
+      if (img.complete && img.naturalWidth === 0) {
+        img.style.display = "none";
+      } else {
+        img.addEventListener("error", () => {
+          img.style.display = "none";
+        });
+      }
+    });
+  }, [a?.id, showExtracted, a?.extractedHtml]);
 
   // Mark as read once when an unread article is opened (if the user opted in).
   useEffect(() => {
@@ -441,6 +459,7 @@ export default function Reader({ onToast }: Props) {
 
           <div
             className="article-body"
+            ref={bodyRef}
             data-serif={useSerif}
             onClick={interceptLinkClick}
             dangerouslySetInnerHTML={{
