@@ -23,7 +23,14 @@ export default function PromptDialog({
   const { t } = useTranslation();
   const [value, setValue] = useState(initialValue);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   useFocusTrap(dialogRef);
+
+  // For a rename (the field opens pre-filled), select the text so the user
+  // can type a replacement immediately — standard rename UX.
+  useEffect(() => {
+    if (initialValue) inputRef.current?.select();
+  }, [initialValue]);
 
   // Escape must close the dialog regardless of which control has focus —
   // an input-level handler dies as soon as the user tabs to a button.
@@ -57,6 +64,7 @@ export default function PromptDialog({
         <h2>{title}</h2>
         <input
           className="modal-input"
+          ref={inputRef}
           autoFocus
           value={value}
           placeholder={placeholder}
