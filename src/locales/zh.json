@@ -424,6 +424,8 @@
     "renameTagTitle": "重命名标签",
     "tagNamePlaceholder": "标签名称",
     "deleteTag": "删除标签",
+    "moveTagUp": "上移",
+    "moveTagDown": "下移",
     "tagsEmptyHint": "在阅读时给文章打标签，即可在此分组。",
     "toastTagCreated": "已创建标签",
     "toastTagDeleted": "已删除标签"

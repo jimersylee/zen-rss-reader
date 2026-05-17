@@ -236,7 +236,29 @@ export default function Sidebar({
     },
   ];
 
-  const tagMenu = (tag: Tag): MenuEntry[] => [
+  const tagMenu = (tag: Tag): MenuEntry[] => {
+    const idx = allTags.findIndex((tg) => tg.id === tag.id);
+    return [
+    // Drag-reorder isn't reachable by keyboard — these give it parity.
+    ...(idx > 0
+      ? ([
+          {
+            icon: "arrow-up",
+            label: t("sidebar.moveTagUp"),
+            onClick: () => moveTag(tag.id, -1),
+          },
+        ] as MenuEntry[])
+      : []),
+    ...(idx >= 0 && idx < allTags.length - 1
+      ? ([
+          {
+            icon: "arrow-down",
+            label: t("sidebar.moveTagDown"),
+            onClick: () => moveTag(tag.id, 1),
+          },
+        ] as MenuEntry[])
+      : []),
+    ...(allTags.length > 1 ? [{ separator: true } as MenuEntry] : []),
     {
       icon: "settings",
       label: t("sidebar.renameMenu"),
@@ -271,7 +293,8 @@ export default function Sidebar({
       onClick: () =>
         guard(api.deleteTag(tag.id), t("sidebar.toastTagDeleted")),
     },
-  ];
+    ];
+  };
 
   const createTag = () =>
     setPrompt({
@@ -280,6 +303,16 @@ export default function Sidebar({
       placeholder: t("sidebar.tagNamePlaceholder"),
       onSubmit: (v) => guard(api.createTag(v), t("sidebar.toastTagCreated")),
     });
+
+  // Optimistically apply a new tag order, then persist; reconcile on either
+  // outcome. Shared by the drag-reorder and the menu's move up/down.
+  const persistTagOrder = (next: Tag[]) => {
+    qc.setQueryData(["tags"], next);
+    api
+      .reorderTags(next.map((tg) => tg.id))
+      .catch((e) => onToast(errorText(e)))
+      .finally(() => qc.invalidateQueries({ queryKey: ["tags"] }));
+  };
 
   // ── drag to reorder tags ──
   const dropTag = (targetId: number) => {
@@ -291,12 +324,18 @@ export default function Sidebar({
     const next = [...allTags];
     const [moved] = next.splice(from, 1);
     next.splice(to, 0, moved);
-    // Optimistically reorder, then persist; reconcile on either outcome.
-    qc.setQueryData(["tags"], next);
-    api
-      .reorderTags(next.map((tg) => tg.id))
-      .catch((e) => onToast(errorText(e)))
-      .finally(() => qc.invalidateQueries({ queryKey: ["tags"] }));
+    persistTagOrder(next);
+  };
+
+  // Keyboard-reachable counterpart to the drag-reorder: swap a tag with its
+  // neighbour. `dir` is -1 (up) or 1 (down).
+  const moveTag = (tagId: number, dir: -1 | 1) => {
+    const i = allTags.findIndex((tg) => tg.id === tagId);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= allTags.length) return;
+    const next = [...allTags];
+    [next[i], next[j]] = [next[j], next[i]];
+    persistTagOrder(next);
   };
 
   // ── feed row ──

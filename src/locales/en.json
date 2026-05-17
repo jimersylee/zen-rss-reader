@@ -424,6 +424,8 @@
     "renameTagTitle": "Rename tag",
     "tagNamePlaceholder": "Tag name",
     "deleteTag": "Delete tag",
+    "moveTagUp": "Move up",
+    "moveTagDown": "Move down",
     "tagsEmptyHint": "Tag articles while reading to group them here.",
     "toastTagCreated": "Tag created",
     "toastTagDeleted": "Tag deleted"

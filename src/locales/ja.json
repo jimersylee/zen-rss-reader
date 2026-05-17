@@ -424,6 +424,8 @@
     "renameTagTitle": "タグの名前を変更",
     "tagNamePlaceholder": "タグ名",
     "deleteTag": "タグを削除",
+    "moveTagUp": "上へ移動",
+    "moveTagDown": "下へ移動",
     "tagsEmptyHint": "記事を読みながらタグを付けると、ここにまとまります。",
     "toastTagCreated": "タグを作成しました",
     "toastTagDeleted": "タグを削除しました"
