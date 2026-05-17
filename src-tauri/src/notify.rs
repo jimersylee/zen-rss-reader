@@ -47,6 +47,16 @@ pub async fn notify_new_articles(app: &AppHandle, count: usize) {
     if count == 0 {
         return;
     }
+    // Skip the notification when the window is already focused — the new
+    // articles just appear in the list; an OS notification would only
+    // interrupt content the user is actively looking at.
+    let focused = app
+        .get_webview_window("main")
+        .and_then(|w| w.is_focused().ok())
+        .unwrap_or(false);
+    if focused {
+        return;
+    }
     let (sound, lang) = {
         let state = app.state::<AppState>();
         let conn = state.read().await;
