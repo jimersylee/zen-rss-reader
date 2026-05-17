@@ -54,6 +54,7 @@ export default function Reader({ onToast }: Props) {
   const [showExtracted, setShowExtracted] = useState(true);
   const [tagPick, setTagPick] = useState<{ x: number; y: number } | null>(null);
   const [heroBroken, setHeroBroken] = useState(false);
+  const [progress, setProgress] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   // Article id we already auto-marked read via scroll, so a flurry of scroll
   // events near the foot doesn't fire `setRead` repeatedly before the
@@ -89,6 +90,7 @@ export default function Reader({ onToast }: Props) {
     setScrolled(false);
     setTagPick(null);
     setHeroBroken(false);
+    setProgress(0);
     scrollMarkedRef.current = null;
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
   }, [id]);
@@ -113,6 +115,8 @@ export default function Reader({ onToast }: Props) {
     const el = scrollRef.current;
     if (!el) return;
     setScrolled(el.scrollTop > 8);
+    const max = el.scrollHeight - el.clientHeight;
+    setProgress(max > 0 ? Math.min(1, el.scrollTop / max) : 0);
     // Mark read once the reader is scrolled to the foot of the article.
     if (
       markReadOnScroll &&
@@ -312,6 +316,13 @@ export default function Reader({ onToast }: Props) {
             <Icon name="open" size={16} />
           </button>
         )}
+      </div>
+
+      <div className="read-progress-track" aria-hidden="true">
+        <div
+          className="read-progress"
+          style={{ transform: `scaleX(${progress})` }}
+        />
       </div>
 
       <div className="reader-scroll" ref={scrollRef} onScroll={onScroll}>
