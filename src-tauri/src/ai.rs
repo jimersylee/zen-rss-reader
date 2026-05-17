@@ -6,7 +6,13 @@ use crate::error::{AppError, AppResult};
 use reqwest::Client;
 use serde::Serialize;
 use serde_json::{json, Value};
+use std::time::Duration;
 use tauri::ipc::Channel;
+
+/// Per-request cap for AI streaming. The shared HTTP client carries the
+/// feed-fetch timeout (~30s), which would truncate a long generation — so AI
+/// requests override it with a generous bound.
+const AI_REQUEST_TIMEOUT: Duration = Duration::from_secs(300);
 
 /// Token-level events streamed to the frontend over an `ipc::Channel`.
 #[derive(Serialize, Clone)]
@@ -97,6 +103,7 @@ async fn stream_anthropic(
         .header("x-api-key", &cfg.api_key)
         .header("anthropic-version", "2023-06-01")
         .header("content-type", "application/json")
+        .timeout(AI_REQUEST_TIMEOUT)
         .json(&body)
         .send()
         .await?;
@@ -121,6 +128,7 @@ async fn stream_openai(
     let resp = client
         .post("https://api.openai.com/v1/chat/completions")
         .bearer_auth(&cfg.api_key)
+        .timeout(AI_REQUEST_TIMEOUT)
         .json(&body)
         .send()
         .await?;
