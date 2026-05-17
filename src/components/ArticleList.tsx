@@ -306,64 +306,7 @@ export default function ArticleList({ onToast }: Props) {
                     onMouseLeave={leaveHover}
                   >
                     {viewMode === "card" && showCardThumbs && (
-                      <div className="art-thumb">
-                        {a.imageUrl ? (
-                          <img
-                            src={a.imageUrl}
-                            alt=""
-                            loading="lazy"
-                            style={{
-                              position: "absolute",
-                              inset: 0,
-                              width: "100%",
-                              height: "100%",
-                              objectFit: "cover",
-                            }}
-                          />
-                        ) : (
-                          <svg
-                            viewBox="0 0 200 112"
-                            preserveAspectRatio="xMidYMid slice"
-                          >
-                            <defs>
-                              <pattern
-                                id={`p-${a.id}`}
-                                width="8"
-                                height="8"
-                                patternUnits="userSpaceOnUse"
-                                patternTransform="rotate(135)"
-                              >
-                                <line
-                                  x1="0"
-                                  y1="0"
-                                  x2="0"
-                                  y2="8"
-                                  stroke={color}
-                                  strokeWidth="1.4"
-                                  opacity="0.18"
-                                />
-                              </pattern>
-                            </defs>
-                            <rect
-                              width="200"
-                              height="112"
-                              fill={`url(#p-${a.id})`}
-                            />
-                            <text
-                              x="100"
-                              y="64"
-                              textAnchor="middle"
-                              fontSize="32"
-                              fontWeight="700"
-                              fill={color}
-                              opacity="0.55"
-                              fontFamily="Inter Tight, sans-serif"
-                            >
-                              {feedAvatar(a.feedTitle)}
-                            </text>
-                          </svg>
-                        )}
-                      </div>
+                      <CardThumb article={a} color={color} />
                     )}
                     <div className="art-head">
                       {!a.isRead && <span className="art-dot" />}
@@ -404,6 +347,76 @@ export default function ArticleList({ onToast }: Props) {
           items={articleMenu(menu.article)}
           onClose={() => setMenu(null)}
         />
+      )}
+    </div>
+  );
+}
+
+/** Card-view thumbnail: the article image, falling back to a generated
+ *  pattern both when there is no image and when the image fails to load. */
+function CardThumb({
+  article,
+  color,
+}: {
+  article: ArticleSummary;
+  color: string;
+}) {
+  const [broken, setBroken] = useState(false);
+  // The virtualizer recycles this instance across rows — clear the error
+  // flag whenever the image URL changes.
+  useEffect(() => setBroken(false), [article.imageUrl]);
+
+  return (
+    <div className="art-thumb">
+      {article.imageUrl && !broken ? (
+        <img
+          src={article.imageUrl}
+          alt=""
+          loading="lazy"
+          onError={() => setBroken(true)}
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+          }}
+        />
+      ) : (
+        <svg viewBox="0 0 200 112" preserveAspectRatio="xMidYMid slice">
+          <defs>
+            <pattern
+              id={`p-${article.id}`}
+              width="8"
+              height="8"
+              patternUnits="userSpaceOnUse"
+              patternTransform="rotate(135)"
+            >
+              <line
+                x1="0"
+                y1="0"
+                x2="0"
+                y2="8"
+                stroke={color}
+                strokeWidth="1.4"
+                opacity="0.18"
+              />
+            </pattern>
+          </defs>
+          <rect width="200" height="112" fill={`url(#p-${article.id})`} />
+          <text
+            x="100"
+            y="64"
+            textAnchor="middle"
+            fontSize="32"
+            fontWeight="700"
+            fill={color}
+            opacity="0.55"
+            fontFamily="Inter Tight, sans-serif"
+          >
+            {feedAvatar(article.feedTitle)}
+          </text>
+        </svg>
       )}
     </div>
   );
