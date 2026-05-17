@@ -232,7 +232,11 @@ export default function App() {
       if (mod) return;
 
       // Skip list/reader shortcuts while any overlay owns the keyboard.
-      if (document.querySelector(".cp-backdrop, .settings-backdrop, .modal-backdrop, .ctx-menu"))
+      if (
+        document.querySelector(
+          ".cp-backdrop, .settings-backdrop, .modal-backdrop, .ctx-menu, .tag-picker",
+        )
+      )
         return;
 
       const st = useUi.getState();
