@@ -366,12 +366,16 @@ export default function App() {
         />
       )}
 
-      {toast && (
-        <div className="toast" key={toast.id}>
-          {toast.text}
-          {toast.kbd && <kbd>{toast.kbd}</kbd>}
-        </div>
-      )}
+      {/* A persistent status region so screen readers announce each toast;
+          the toast itself is position: fixed, so the wrapper adds no layout. */}
+      <div role="status">
+        {toast && (
+          <div className="toast" key={toast.id}>
+            {toast.text}
+            {toast.kbd && <kbd aria-hidden="true">{toast.kbd}</kbd>}
+          </div>
+        )}
+      </div>
     </>
   );
 }
