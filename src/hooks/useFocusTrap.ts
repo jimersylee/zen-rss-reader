@@ -8,9 +8,19 @@ const FOCUSABLE =
   'select:not([disabled]), textarea:not([disabled]), ' +
   '[tabindex]:not([tabindex="-1"])';
 
-/** Trap Tab / Shift+Tab inside `ref`'s subtree for as long as it is mounted. */
-export function useFocusTrap(ref: RefObject<HTMLElement | null>) {
+/**
+ * Trap Tab / Shift+Tab inside `ref`'s subtree while active.
+ *
+ * `enabled` lets a component that stays mounted but toggles its modal on and
+ * off (rather than mounting fresh each time) re-arm the trap: the effect
+ * re-runs when it flips, by which point `ref` points at the now-rendered node.
+ */
+export function useFocusTrap(
+  ref: RefObject<HTMLElement | null>,
+  enabled = true,
+) {
   useEffect(() => {
+    if (!enabled) return;
     const el = ref.current;
     if (!el) return;
     const onKey = (e: KeyboardEvent) => {
@@ -29,5 +39,5 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>) {
     };
     el.addEventListener("keydown", onKey);
     return () => el.removeEventListener("keydown", onKey);
-  }, [ref]);
+  }, [ref, enabled]);
 }

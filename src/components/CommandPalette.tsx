@@ -6,6 +6,7 @@ import { feedHost, relTime } from "../lib/feedMeta";
 import type { ArticleSummary, Feed } from "../types";
 import Icon, { type IconName } from "./Icon";
 import FeedAvatar from "./FeedAvatar";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 export type CommandAction =
   | "mark-all-read"
@@ -61,14 +62,24 @@ export default function CommandPalette({
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const cpRef = useRef<HTMLDivElement>(null);
+
+  useFocusTrap(cpRef, open);
 
   useEffect(() => {
-    if (open) {
-      setQuery("");
-      setDebounced("");
-      setActive(0);
-      setTimeout(() => inputRef.current?.focus(), 30);
-    }
+    if (!open) return;
+    // Return focus to whatever was focused when the palette opened (the
+    // ⌘K trigger lives nowhere in particular), so closing it doesn't drop
+    // the user on <body>.
+    const trigger = document.activeElement as HTMLElement | null;
+    setQuery("");
+    setDebounced("");
+    setActive(0);
+    const id = setTimeout(() => inputRef.current?.focus(), 30);
+    return () => {
+      clearTimeout(id);
+      trigger?.focus?.();
+    };
   }, [open]);
 
   useEffect(() => {
@@ -222,7 +233,7 @@ export default function CommandPalette({
 
   return (
     <div className="cp-backdrop" onClick={onClose}>
-      <div className="cp" onClick={(e) => e.stopPropagation()}>
+      <div className="cp" ref={cpRef} onClick={(e) => e.stopPropagation()}>
         <div className="cp-input">
           <Icon name="search" size={16} />
           <input
