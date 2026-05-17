@@ -1,7 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../api";
+import { useArticleActions } from "../hooks/articleActions";
 import { errorText } from "../lib/errors";
 import Icon from "./Icon";
 
@@ -13,7 +14,7 @@ interface Props {
 /** Subscribe to a new feed — design-styled centered modal. */
 export default function AddFeedDialog({ onClose, onToast }: Props) {
   const { t } = useTranslation();
-  const qc = useQueryClient();
+  const actions = useArticleActions();
   const [url, setUrl] = useState("");
   const [folderId, setFolderId] = useState<number | null>(null);
   const folders = useQuery({ queryKey: ["folders"], queryFn: api.listFolders });
@@ -21,7 +22,9 @@ export default function AddFeedDialog({ onClose, onToast }: Props) {
   const add = useMutation({
     mutationFn: () => api.addFeed(url.trim(), folderId),
     onSuccess: (feed) => {
-      qc.invalidateQueries();
+      // Adding a feed touches only the article-bearing caches — refreshing
+      // unrelated ones (AI summaries, settings, storage) is wasted work.
+      actions.refreshAfterBulk();
       onToast(t("addFeed.subscribed", { title: feed.title }));
       onClose();
     },
