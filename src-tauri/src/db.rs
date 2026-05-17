@@ -1082,9 +1082,14 @@ pub fn vacuum(conn: &Connection) -> AppResult<()> {
     Ok(())
 }
 
-/// Wipe all user content (feeds → articles cascade, folders). Settings are kept.
+/// Wipe all user content (feeds → articles cascade, folders). Settings are
+/// kept. Both deletes commit together so a failure can't leave feeds wiped
+/// but folders behind.
 pub fn clear_all_data(conn: &Connection) -> AppResult<()> {
-    conn.execute_batch("DELETE FROM feeds; DELETE FROM folders;")?;
+    let tx = conn.unchecked_transaction()?;
+    tx.execute("DELETE FROM feeds", [])?;
+    tx.execute("DELETE FROM folders", [])?;
+    tx.commit()?;
     Ok(())
 }
 
