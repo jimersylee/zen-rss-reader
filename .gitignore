@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Stray compiler scratch output
+a.out
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
