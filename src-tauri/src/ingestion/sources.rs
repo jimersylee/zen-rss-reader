@@ -48,11 +48,7 @@ pub fn normalize_source(input: &str) -> Normalized {
 
     // Tolerate a missing scheme (`youtube.com/@x`) — prepend https:// so the
     // URL parser can do host/path matching.
-    let with_scheme = if trimmed.contains("://") {
-        trimmed.to_string()
-    } else {
-        format!("https://{trimmed}")
-    };
+    let with_scheme = super::discovery::normalize_query_url(trimmed);
     let Ok(url) = Url::parse(&with_scheme) else {
         return Normalized::Untouched;
     };

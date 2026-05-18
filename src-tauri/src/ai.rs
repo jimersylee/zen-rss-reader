@@ -244,15 +244,11 @@ fn handle_sse_line(
 
 /// Drive the Server-Sent-Events response, extracting text deltas per provider.
 async fn consume_sse(
-    mut resp: reqwest::Response,
+    resp: reqwest::Response,
     channel: &Channel<AiEvent>,
     provider: Provider,
 ) -> AppResult<ChatOutcome> {
-    if !resp.status().is_success() {
-        let status = resp.status();
-        let detail = resp.text().await.unwrap_or_default();
-        return Err(AppError::other(format!("AI API error {status}: {detail}")));
-    }
+    let mut resp = crate::export::ensure_success(resp, "AI API").await?;
 
     let mut buf: Vec<u8> = Vec::new();
     let mut full = String::new();

@@ -382,13 +382,6 @@ export default function Reader({ onToast }: Props) {
   const body =
     (showExtracted && a.extractedHtml ? a.extractedHtml : a.contentHtml) || "";
   const ytId = a.sourceType === "youtube" ? youtubeId(a.url) : null;
-  // Identifies the rendered body markup so HighlightLayer can re-apply its
-  // <mark> overlay whenever the Reader swaps the body (extract toggle,
-  // extraction finishing). The body string itself is used rather than a
-  // numeric proxy like its length: two distinct bodies (e.g. the feed
-  // content vs. the extracted full text) can share a length, and a length
-  // collision would leave the new DOM with no highlights re-applied.
-  const bodyVersion = body;
 
   return (
     <div className="reader" role="main">
@@ -490,7 +483,7 @@ export default function Reader({ onToast }: Props) {
           key={a.id}
           articleId={a.id}
           bodyRef={bodyRef}
-          bodyVersion={bodyVersion}
+          bodyVersion={body}
           onToast={onToast}
         />
         <button

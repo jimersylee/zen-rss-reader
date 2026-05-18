@@ -152,13 +152,7 @@ pub async fn post_to_instapaper(
         .body(body)
         .send()
         .await?;
-    if !resp.status().is_success() {
-        let status = resp.status();
-        let detail = resp.text().await.unwrap_or_default();
-        return Err(AppError::other(format!(
-            "Instapaper error {status}: {detail}"
-        )));
-    }
+    crate::export::ensure_success(resp, "Instapaper").await?;
     Ok(())
 }
 
@@ -220,45 +214,10 @@ img {{ max-width: 100%; height: auto; }}\n\
     )
 }
 
-/// Turn an article title into a filesystem/attachment-safe `.html` filename.
-///
-/// The title is attacker-influenced feed content that travels into the email's
-/// `Content-Disposition` filename and is then written to disk by the Kindle
-/// service, so three hazards are handled — mirroring `obsidian_note_filename`:
-///   * path separators / reserved characters are mapped to `-`;
-///   * a leading `.` is stripped — a title of `.` or `..` would otherwise
-///     produce a hidden file (`.html`) or an odd one (`..html`);
-///   * the stem is truncated to fit a 255-*byte* filename component (the
-///     POSIX/HFS+/APFS limit Kindle's storage shares). A long title — easily
-///     reached with CJK text, where each character is 3 bytes — would
-///     otherwise yield an over-long, malformed attachment name.
-///
-/// Pure — unit-tested below.
+/// Turn an article title into a filesystem/attachment-safe `.html` filename
+/// for the Kindle email attachment, falling back to `article.html`.
 pub fn kindle_attachment_name(title: &str) -> String {
-    let safe: String = title
-        .chars()
-        .map(|c| if "/\\:*?\"<>|\r\n\t".contains(c) { '-' } else { c })
-        .collect();
-    // Trim whitespace and leading dots so the stem can't be empty or hidden.
-    let safe = safe.trim().trim_start_matches('.').trim();
-    if safe.is_empty() {
-        return "article.html".to_string();
-    }
-    // 255 bytes is the per-component cap; leave room for the ".html" suffix.
-    const MAX_STEM_BYTES: usize = 255 - 5;
-    let mut stem = String::with_capacity(safe.len().min(MAX_STEM_BYTES));
-    for c in safe.chars() {
-        if stem.len() + c.len_utf8() > MAX_STEM_BYTES {
-            break;
-        }
-        stem.push(c);
-    }
-    let stem = stem.trim_end();
-    if stem.is_empty() {
-        "article.html".to_string()
-    } else {
-        format!("{stem}.html")
-    }
+    crate::export::safe_filename(title, ".html", "article.html")
 }
 
 /// Resolved SMTP configuration for "Send to Kindle".

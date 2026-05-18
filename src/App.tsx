@@ -277,7 +277,7 @@ export default function App() {
       // a ⌘-combo. Crucially, the command palette and Settings each own a
       // focused text field, so gating these on focus would make ⌘K / ⌘, fail
       // to *close* their own dialog — the one path Escape isn't the only key
-      // for — leaving the toggle-off comment below describing dead behaviour.
+      // for.
 
       // ⌘K / ⌘, open their own modal. Firing them while another modal is
       // already open would stack a second dialog on top — two focus traps

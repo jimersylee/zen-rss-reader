@@ -308,13 +308,8 @@ pub async fn mark_read(app: AppHandle, id: i64, read: bool) -> AppResult<()> {
         enqueue_if_connected(&conn, id, "read", read);
     }
     // Marking one article read changes the unread count, so both unread
-    // surfaces must be refreshed — not just the Dock badge. Without the tray
-    // rebuild the menu-bar count and the "N unread" status line stay stale
-    // after every single read toggle (the most frequent way the count moves:
-    // clicking through articles, the `u` shortcut, mark-on-open/scroll), only
-    // catching up on the next full refresh or mark-all. `mark_all_read` and
-    // `clear_all_data` already pair the two; this brings the single-article
-    // path in line.
+    // surfaces must be refreshed: the Dock badge and the tray (its menu-bar
+    // count and "N unread" status line).
     crate::notify::update_badge(&app).await;
     crate::tray::refresh(&app).await;
     Ok(())
@@ -1147,42 +1142,10 @@ pub async fn export_highlights_markdown(
     Ok(export::build_markdown(&article, &highlights))
 }
 
-/// Derive a filesystem-safe `.md` note name from an article title.
-///
-/// Three hazards are handled, since the title is attacker-influenced feed
-/// content written straight to the user's vault folder:
-///   * path separators / reserved characters are mapped to `-`;
-///   * a leading `.` is stripped — a title of `.` or `..` would otherwise
-///     produce a hidden file (`.md`) or an odd one (`..md`);
-///   * the stem is truncated to fit a 255-*byte* filename component (the
-///     POSIX/HFS+/APFS limit). A long title — easily reached with CJK text,
-///     where each character is 3 bytes — would otherwise make `fs::write`
-///     fail with a raw `ENAMETOOLONG` instead of just saving.
+/// Derive a filesystem-safe `.md` note name from an article title, falling
+/// back to a stable `highlights-<id>.md` when the title yields an empty stem.
 fn obsidian_note_filename(title: &str, article_id: i64) -> String {
-    let safe: String = title
-        .chars()
-        .map(|c| if "/\\:*?\"<>|".contains(c) { '-' } else { c })
-        .collect();
-    // Trim whitespace and leading dots so the stem can't be empty or hidden.
-    let safe = safe.trim().trim_start_matches('.').trim();
-    if safe.is_empty() {
-        return format!("highlights-{article_id}.md");
-    }
-    // 255 bytes is the per-component cap; leave room for the ".md" suffix.
-    const MAX_STEM_BYTES: usize = 255 - 3;
-    let mut stem = String::with_capacity(safe.len().min(MAX_STEM_BYTES));
-    for c in safe.chars() {
-        if stem.len() + c.len_utf8() > MAX_STEM_BYTES {
-            break;
-        }
-        stem.push(c);
-    }
-    let stem = stem.trim_end();
-    if stem.is_empty() {
-        format!("highlights-{article_id}.md")
-    } else {
-        format!("{stem}.md")
-    }
+    export::safe_filename(title, ".md", &format!("highlights-{article_id}.md"))
 }
 
 /// Write an article's highlights as a Markdown file into the user-configured
@@ -1193,18 +1156,14 @@ pub async fn export_highlights_to_obsidian(
     state: State<'_, AppState>,
     article_id: i64,
 ) -> AppResult<String> {
-    let (markdown, vault) = {
+    let (markdown, vault, title) = {
         let conn = state.read().await;
         let (article, highlights) = load_for_export(&conn, article_id)?;
         let vault = db::get_setting(&conn, "obsidian_vault")?
             .filter(|v| !v.trim().is_empty())
             .ok_or_else(|| AppError::code("noObsidianVault"))?;
-        (export::build_markdown(&article, &highlights), vault)
-    };
-    // Derive a filesystem-safe note name from the article title.
-    let title = {
-        let conn = state.read().await;
-        db::get_article(&conn, article_id)?.title
+        let markdown = export::build_markdown(&article, &highlights);
+        (markdown, vault, article.title)
     };
     let name = obsidian_note_filename(&title, article_id);
     let dir = PathBuf::from(vault.trim());

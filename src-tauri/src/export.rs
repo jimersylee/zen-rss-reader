@@ -12,14 +12,53 @@ use serde_json::{json, Value};
 
 /// Map a non-success HTTP response to an `AppError` that names the service and
 /// carries the response body; returns the response unchanged on success so a
-/// caller can keep reading it.
-async fn ensure_success(resp: Response, service: &str) -> AppResult<Response> {
+/// caller can keep reading it. Shared by every outbound integration that
+/// reports failures the same way (`share.rs`, `ai.rs`).
+pub async fn ensure_success(resp: Response, service: &str) -> AppResult<Response> {
     if resp.status().is_success() {
         return Ok(resp);
     }
     let status = resp.status();
     let detail = resp.text().await.unwrap_or_default();
     Err(AppError::other(format!("{service} error {status}: {detail}")))
+}
+
+/// Derive a filesystem-safe filename from an attacker-influenced title.
+///
+/// The title is feed content that travels onto disk (an Obsidian note, a
+/// Kindle attachment) and into a `Content-Disposition` header, so three
+/// hazards are handled:
+///   * path separators / reserved characters (including `\r\n\t`) → `-`;
+///   * a leading `.` is stripped — a title of `.`/`..` would otherwise yield a
+///     hidden file or an odd one (`..md`);
+///   * the stem is truncated so the whole `<stem><ext>` name fits the 255-byte
+///     component limit (POSIX/HFS+/APFS), never splitting a multi-byte char —
+///     easily reached with CJK text, where each character is 3 bytes.
+///
+/// `fallback` is returned whole when the title reduces to an empty stem.
+pub fn safe_filename(title: &str, ext: &str, fallback: &str) -> String {
+    let safe: String = title
+        .chars()
+        .map(|c| if "/\\:*?\"<>|\r\n\t".contains(c) { '-' } else { c })
+        .collect();
+    let safe = safe.trim().trim_start_matches('.').trim();
+    if safe.is_empty() {
+        return fallback.to_string();
+    }
+    let max_stem_bytes = 255_usize.saturating_sub(ext.len());
+    let mut stem = String::with_capacity(safe.len().min(max_stem_bytes));
+    for c in safe.chars() {
+        if stem.len() + c.len_utf8() > max_stem_bytes {
+            break;
+        }
+        stem.push(c);
+    }
+    let stem = stem.trim_end();
+    if stem.is_empty() {
+        fallback.to_string()
+    } else {
+        format!("{stem}{ext}")
+    }
 }
 
 /// The article fields an export needs. A small owned struct so the builders
