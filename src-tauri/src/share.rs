@@ -236,17 +236,43 @@ img {{ max-width: 100%; height: auto; }}\n\
 }
 
 /// Turn an article title into a filesystem/attachment-safe `.html` filename.
+///
+/// The title is attacker-influenced feed content that travels into the email's
+/// `Content-Disposition` filename and is then written to disk by the Kindle
+/// service, so three hazards are handled — mirroring `obsidian_note_filename`:
+///   * path separators / reserved characters are mapped to `-`;
+///   * a leading `.` is stripped — a title of `.` or `..` would otherwise
+///     produce a hidden file (`.html`) or an odd one (`..html`);
+///   * the stem is truncated to fit a 255-*byte* filename component (the
+///     POSIX/HFS+/APFS limit Kindle's storage shares). A long title — easily
+///     reached with CJK text, where each character is 3 bytes — would
+///     otherwise yield an over-long, malformed attachment name.
+///
 /// Pure — unit-tested below.
 pub fn kindle_attachment_name(title: &str) -> String {
     let safe: String = title
         .chars()
         .map(|c| if "/\\:*?\"<>|\r\n\t".contains(c) { '-' } else { c })
         .collect();
-    let safe = safe.trim();
+    // Trim whitespace and leading dots so the stem can't be empty or hidden.
+    let safe = safe.trim().trim_start_matches('.').trim();
     if safe.is_empty() {
+        return "article.html".to_string();
+    }
+    // 255 bytes is the per-component cap; leave room for the ".html" suffix.
+    const MAX_STEM_BYTES: usize = 255 - 5;
+    let mut stem = String::with_capacity(safe.len().min(MAX_STEM_BYTES));
+    for c in safe.chars() {
+        if stem.len() + c.len_utf8() > MAX_STEM_BYTES {
+            break;
+        }
+        stem.push(c);
+    }
+    let stem = stem.trim_end();
+    if stem.is_empty() {
         "article.html".to_string()
     } else {
-        format!("{safe}.html")
+        format!("{stem}.html")
     }
 }
 
@@ -541,6 +567,43 @@ mod tests {
     fn attachment_name_falls_back_when_title_blank() {
         assert_eq!(kindle_attachment_name("   "), "article.html");
         assert_eq!(kindle_attachment_name(""), "article.html");
+        // A title that is only dots reduces to an empty stem.
+        assert_eq!(kindle_attachment_name("."), "article.html");
+        assert_eq!(kindle_attachment_name(".."), "article.html");
+    }
+
+    #[test]
+    fn attachment_name_strips_leading_dots() {
+        // A leading `.` would otherwise produce a hidden-file attachment name.
+        assert_eq!(kindle_attachment_name(".hidden"), "hidden.html");
+        assert_eq!(kindle_attachment_name("..twodots"), "twodots.html");
+    }
+
+    #[test]
+    fn attachment_name_truncates_an_over_long_title() {
+        // A 300-char ASCII title must fit inside the 255-byte component cap.
+        let long = "a".repeat(300);
+        let name = kindle_attachment_name(&long);
+        assert!(name.ends_with(".html"));
+        assert!(name.len() <= 255, "filename {} bytes", name.len());
+    }
+
+    #[test]
+    fn attachment_name_truncates_cjk_on_a_char_boundary() {
+        // Each CJK glyph is 3 bytes — a 120-char title is 360 bytes. The
+        // truncation must not split a multi-byte character (which would make
+        // the result invalid UTF-8 / mojibake).
+        let long = "文".repeat(120);
+        let name = kindle_attachment_name(&long);
+        assert!(name.ends_with(".html"));
+        assert!(name.len() <= 255, "filename {} bytes", name.len());
+        // Still valid UTF-8 with no replacement characters introduced.
+        assert!(!name.contains('\u{FFFD}'));
+    }
+
+    #[test]
+    fn attachment_name_leaves_a_normal_title_intact() {
+        assert_eq!(kindle_attachment_name("My Article Title"), "My Article Title.html");
     }
 
     // ── Kindle MIME message ──

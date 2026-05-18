@@ -248,8 +248,9 @@ pub async fn move_feed(
 
 #[tauri::command]
 pub async fn rename_feed(state: State<'_, AppState>, id: i64, title: String) -> AppResult<()> {
+    // `db::rename_feed` trims and rejects an empty title — the one chokepoint.
     let conn = state.db.lock().await;
-    db::rename_feed(&conn, id, title.trim())
+    db::rename_feed(&conn, id, &title)
 }
 
 /// Refresh every feed, streaming progress to the frontend over `on_progress`.
@@ -306,7 +307,16 @@ pub async fn mark_read(app: AppHandle, id: i64, read: bool) -> AppResult<()> {
         db::set_read(&conn, id, read)?;
         enqueue_if_connected(&conn, id, "read", read);
     }
+    // Marking one article read changes the unread count, so both unread
+    // surfaces must be refreshed — not just the Dock badge. Without the tray
+    // rebuild the menu-bar count and the "N unread" status line stay stale
+    // after every single read toggle (the most frequent way the count moves:
+    // clicking through articles, the `u` shortcut, mark-on-open/scroll), only
+    // catching up on the next full refresh or mark-all. `mark_all_read` and
+    // `clear_all_data` already pair the two; this brings the single-article
+    // path in line.
     crate::notify::update_badge(&app).await;
+    crate::tray::refresh(&app).await;
     Ok(())
 }
 
@@ -1299,13 +1309,17 @@ fn html_to_text(html: &str) -> String {
             _ => out.push(c),
         }
     }
-    // Decode the handful of entities a sanitized body can carry.
-    out.replace("&amp;", "&")
-        .replace("&lt;", "<")
+    // Decode the handful of entities a sanitized body can carry. `&amp;` is
+    // decoded *last*, after every other entity: doing it first would
+    // double-decode an escaped entity — a body that literally shows the text
+    // `&lt;` is encoded by `sanitize` as `&amp;lt;`, and an `&amp;`-first pass
+    // would turn that into `&lt;` and then `<`, corrupting the visible text.
+    out.replace("&lt;", "<")
         .replace("&gt;", ">")
         .replace("&quot;", "\"")
         .replace("&#39;", "'")
         .replace("&nbsp;", " ")
+        .replace("&amp;", "&")
 }
 
 /// Load an article from the database into a `ShareArticle`. The body prefers
@@ -1545,6 +1559,20 @@ mod tests {
             html_to_text("<p>tom &amp; jerry &lt;3 &quot;x&quot;</p>").trim(),
             "tom & jerry <3 \"x\""
         );
+    }
+
+    #[test]
+    fn html_to_text_does_not_double_decode_escaped_entities() {
+        // `sanitize` encodes a body that literally shows the text `&lt;` as
+        // `&amp;lt;`. Decoding `&amp;` before `&lt;` would turn that into
+        // `&lt;` and then `<`, corrupting the visible text. `&amp;` must be
+        // decoded last so each entity is decoded exactly once.
+        assert_eq!(
+            html_to_text("<p>write &amp;lt;br&amp;gt; for a break</p>").trim(),
+            "write &lt;br&gt; for a break"
+        );
+        // `&amp;amp;` is the escaped form of the literal text `&amp;`.
+        assert_eq!(html_to_text("<p>&amp;amp;</p>").trim(), "&amp;");
     }
 
     #[test]

@@ -25,12 +25,21 @@ pub fn parse(content: &str) -> AppResult<Vec<ImportedFeed>> {
 /// The human-facing label of an outline: its `text` attribute, falling back to
 /// the `title` attribute. Many OPML exporters label folder/feed outlines with
 /// only `title` (which the spec permits), leaving `text` empty.
+///
+/// A *whitespace-only* attribute counts as absent, not present: a folder
+/// outline labelled `text=" "` would otherwise pass its blank name down to
+/// `db::create_folder` (via `import_opml` → `folder_id_by_name`), which trims
+/// it to `""` — and `db::create_folder` now rejects an empty name, so the whole
+/// transactional import would abort on one stray outline. Treating a blank
+/// label as `None` here keeps such a feed importing as ungrouped (and a
+/// blank-labelled feed outline falling back to its URL for a title) instead.
 fn outline_label(outline: &Outline) -> Option<&str> {
-    if !outline.text.is_empty() {
+    let label = if !outline.text.trim().is_empty() {
         Some(outline.text.as_str())
     } else {
-        outline.title.as_deref().filter(|t| !t.is_empty())
-    }
+        outline.title.as_deref()
+    };
+    label.filter(|t| !t.trim().is_empty())
 }
 
 fn collect(outline: &Outline, folder: Option<&str>, out: &mut Vec<ImportedFeed>) {

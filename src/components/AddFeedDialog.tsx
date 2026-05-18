@@ -138,6 +138,17 @@ export default function AddFeedDialog({ onClose, onToast, initialUrl }: Props) {
     }
   };
 
+  // Enter submits the newsletter form from any of its fields — matching the
+  // feed tab, where Enter in the URL input subscribes. Previously only the
+  // password field carried a submit handler, so a keyboard user filling the
+  // form top-to-bottom (host → username → …) found Enter dead everywhere
+  // except the last field. The `isComposing` guard skips the Enter that only
+  // confirms an IME candidate (CJK input in the title/host/folder fields), the
+  // same guard the feed URL input uses.
+  const nlKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.nativeEvent.isComposing) submit();
+  };
+
   /** Subscribe directly from a discovery result row. */
   const subscribeResult = (r: DiscoveryResult) => {
     if (!add.isPending) add.mutate(r.feedUrl);
@@ -206,7 +217,8 @@ export default function AddFeedDialog({ onClose, onToast, initialUrl }: Props) {
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") submit();
+                // Ignore the Enter that only confirms an IME candidate.
+                if (e.key === "Enter" && !e.nativeEvent.isComposing) submit();
               }}
             />
 
@@ -295,6 +307,7 @@ export default function AddFeedDialog({ onClose, onToast, initialUrl }: Props) {
               aria-label={t("addFeed.nlTitleLabel")}
               value={nlTitle}
               onChange={(e) => setNlTitle(e.target.value)}
+              onKeyDown={nlKeyDown}
             />
             <div style={{ display: "flex", gap: 8 }}>
               <input
@@ -305,6 +318,7 @@ export default function AddFeedDialog({ onClose, onToast, initialUrl }: Props) {
                 aria-label={t("addFeed.nlHostLabel")}
                 value={nlHost}
                 onChange={(e) => setNlHost(e.target.value)}
+                onKeyDown={nlKeyDown}
               />
               <input
                 className="modal-input"
@@ -314,6 +328,7 @@ export default function AddFeedDialog({ onClose, onToast, initialUrl }: Props) {
                 aria-label={t("addFeed.nlPortLabel")}
                 value={nlPort}
                 onChange={(e) => setNlPort(e.target.value)}
+                onKeyDown={nlKeyDown}
               />
             </div>
             <input
@@ -323,6 +338,7 @@ export default function AddFeedDialog({ onClose, onToast, initialUrl }: Props) {
               aria-label={t("addFeed.nlUserLabel")}
               value={nlUser}
               onChange={(e) => setNlUser(e.target.value)}
+              onKeyDown={nlKeyDown}
             />
             <input
               className="modal-input"
@@ -331,9 +347,7 @@ export default function AddFeedDialog({ onClose, onToast, initialUrl }: Props) {
               aria-label={t("addFeed.nlPassLabel")}
               value={nlPass}
               onChange={(e) => setNlPass(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") submit();
-              }}
+              onKeyDown={nlKeyDown}
             />
             <input
               className="modal-input"
@@ -342,6 +356,7 @@ export default function AddFeedDialog({ onClose, onToast, initialUrl }: Props) {
               aria-label={t("addFeed.nlFolderLabel")}
               value={nlFolder}
               onChange={(e) => setNlFolder(e.target.value)}
+              onKeyDown={nlKeyDown}
             />
             {addNewsletter.isError && (
               <div className="modal-error">

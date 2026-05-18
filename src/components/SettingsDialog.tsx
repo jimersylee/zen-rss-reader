@@ -276,6 +276,18 @@ function Segmented<T extends string>({
   );
 }
 
+/** The keys that actually move an `<input type="range">`. `onKeyUp` fires for
+ *  every key release while the slider is focused — Tab (which merely lands or
+ *  leaves focus), Shift, the modifier keys — so committing on a bare keyup
+ *  would run `onCommit` for a key that never changed the value. For the
+ *  network-timeout slider that side effect is a full HTTP-client rebuild, so a
+ *  user simply Tab-navigating through Settings would trigger one. Restrict the
+ *  commit to releases of a value-changing key. */
+const SLIDER_KEYS = new Set([
+  "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown",
+  "Home", "End", "PageUp", "PageDown",
+]);
+
 function Slider({
   value,
   min,
@@ -320,9 +332,13 @@ function Slider({
         onPointerUp={(e) =>
           onCommit?.(Number((e.target as HTMLInputElement).value))
         }
-        onKeyUp={(e) =>
-          onCommit?.(Number((e.target as HTMLInputElement).value))
-        }
+        onKeyUp={(e) => {
+          // Only a key that can move the slider commits — a bare keyup from
+          // Tab / Shift / a modifier never changed the value.
+          if (SLIDER_KEYS.has(e.key)) {
+            onCommit?.(Number((e.target as HTMLInputElement).value));
+          }
+        }}
       />
       <span className="s-value">
         {draft}
@@ -405,6 +421,21 @@ function LaunchAtLogin({ onToast }: { onToast: (m: string) => void }) {
 // backend scheduler exposes (it reads `refresh_interval_min`, minimum 5).
 const OFF_INTERVAL = 525600;
 
+// A persisted numeric setting, coerced into the range its `<Slider>` accepts.
+// Settings live in the backend DB and are normally written numeric, but a
+// stale value from an older build with different slider limits — or a corrupt
+// non-numeric value — would otherwise flow straight into a `<Slider>`: an
+// out-of-range value pins the thumb at the limit while the readout shows a
+// contradicting number, and a NaN renders the value as a literal "NaN". This
+// mirrors `store.ts`'s `ls.num`, which validates the localStorage-backed
+// reader sliders for exactly the same reason.
+function clampSetting(raw: string | null, fallback: number, min: number, max: number): number {
+  if (raw == null || raw === "") return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
 function GeneralSection({ onToast }: { onToast: (m: string) => void }) {
   const { t } = useTranslation();
   const prefs = useUi((s) => s.prefs);
@@ -417,10 +448,14 @@ function GeneralSection({ onToast }: { onToast: (m: string) => void }) {
       .getSetting("refresh_interval_min")
       .then((v) => {
         const n = v ? Number(v) : 30;
-        if (n >= 100000) setAutoRefresh(false);
+        // A finite interval at/above the "off" sentinel means auto-refresh is
+        // disabled; anything else is a live interval clamped to the slider's
+        // 5–120 range (a stale larger value would otherwise show e.g. "150
+        // minutes" with the thumb stuck at 120, and a NaN would read "NaN").
+        if (Number.isFinite(n) && n >= 100000) setAutoRefresh(false);
         else {
           setAutoRefresh(true);
-          setRefreshMins(Math.max(5, n));
+          setRefreshMins(clampSetting(v ?? null, 30, 5, 120));
         }
       })
       .catch(() => {});
@@ -1512,8 +1547,10 @@ function NetworkGroup({ onToast }: { onToast: (m: string) => void }) {
           setProxy("custom");
           setCustomProxy(p);
         }
-        if (c) setConcurrency(Number(c));
-        if (t) setTimeoutSec(Number(t));
+        // Clamp to each slider's range (concurrency 1–16, timeout 5–120) so a
+        // stale or corrupt stored value can't show a NaN / out-of-range readout.
+        if (c) setConcurrency(clampSetting(c, 6, 1, 16));
+        if (t) setTimeoutSec(clampSetting(t, 30, 5, 120));
       })
       .catch(() => {});
   }, []);
@@ -1752,9 +1789,13 @@ function AiSettingsGroup({ onToast }: { onToast: (m: string) => void }) {
           placeholder="sk-…"
           onChange={(e) => setApiKey(e.target.value)}
           onBlur={() => {
-            if (apiKey !== savedKey.current) {
-              savedKey.current = apiKey;
-              save("ai_api_key", apiKey, t("settings.advanced.aiApiKeyLabel"));
+            // Trim before persisting — a pasted key routinely carries a
+            // trailing newline / space that would break the auth header.
+            const trimmed = apiKey.trim();
+            if (trimmed !== apiKey) setApiKey(trimmed);
+            if (trimmed !== savedKey.current) {
+              savedKey.current = trimmed;
+              save("ai_api_key", trimmed, t("settings.advanced.aiApiKeyLabel"));
             }
           }}
         />
@@ -1770,9 +1811,13 @@ function AiSettingsGroup({ onToast }: { onToast: (m: string) => void }) {
           placeholder={placeholder}
           onChange={(e) => setModel(e.target.value)}
           onBlur={() => {
-            if (model !== savedModel.current) {
-              savedModel.current = model;
-              save("ai_model", model, t("settings.advanced.aiModelLabel"));
+            // Trim before persisting — a pasted model name with a stray
+            // space / newline yields a "model not found" from the provider.
+            const trimmed = model.trim();
+            if (trimmed !== model) setModel(trimmed);
+            if (trimmed !== savedModel.current) {
+              savedModel.current = trimmed;
+              save("ai_model", trimmed, t("settings.advanced.aiModelLabel"));
             }
           }}
         />

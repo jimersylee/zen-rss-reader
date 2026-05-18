@@ -3,6 +3,7 @@
 
 use crate::error::{AppError, AppResult};
 use crate::models::*;
+use rusqlite::functions::FunctionFlags;
 use rusqlite::{params, params_from_iter, types::Value, Connection, OptionalExtension};
 use rusqlite_migration::{Migrations, M};
 use std::path::Path;
@@ -240,6 +241,31 @@ static MIGRATIONS: LazyLock<Migrations> = LazyLock::new(|| {
 /// Open the writer connection: run migrations and set the write-side pragmas.
 /// WAL mode is persisted in the database header, so reader connections opened
 /// afterwards inherit it automatically.
+/// Register Papr's custom SQL scalar functions on a freshly opened connection.
+///
+/// SQLite's built-in `LOWER()` only case-folds ASCII (it has no Unicode
+/// awareness without the ICU extension, which the bundled build omits). Rust's
+/// `str::to_lowercase()` is fully Unicode-aware. Anywhere a query needs to
+/// match the case-folding the Rust code does — notably `preview_rule`, which
+/// must agree with `rule_matches`'s `to_lowercase()` so the rule preview counts
+/// exactly the articles live ingestion would act on — `unicode_lower` provides
+/// it. SQLite scalar functions are per-connection, so this runs for every
+/// connection (the writer and each pooled reader).
+fn register_functions(conn: &Connection) -> AppResult<()> {
+    conn.create_scalar_function(
+        "unicode_lower",
+        1,
+        FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_DETERMINISTIC,
+        |ctx| {
+            // A NULL argument folds to NULL; callers `COALESCE` beforehand, but
+            // staying total here keeps the function safe to use bare.
+            let value: Option<String> = ctx.get(0)?;
+            Ok(value.map(|s| s.to_lowercase()))
+        },
+    )?;
+    Ok(())
+}
+
 pub fn open(path: &Path) -> AppResult<Connection> {
     let mut conn = Connection::open(path)?;
     conn.pragma_update(None, "journal_mode", "WAL")?;
@@ -247,6 +273,7 @@ pub fn open(path: &Path) -> AppResult<Connection> {
     conn.pragma_update(None, "synchronous", "NORMAL")?;
     conn.pragma_update(None, "busy_timeout", 5000)?;
     MIGRATIONS.to_latest(&mut conn)?;
+    register_functions(&conn)?;
     Ok(conn)
 }
 
@@ -258,6 +285,7 @@ pub fn open_reader(path: &Path) -> AppResult<Connection> {
     let conn = Connection::open(path)?;
     conn.pragma_update(None, "busy_timeout", 5000)?;
     conn.pragma_update(None, "query_only", true)?;
+    register_functions(&conn)?;
     Ok(conn)
 }
 
@@ -278,7 +306,44 @@ pub fn list_folders(conn: &Connection) -> AppResult<Vec<Folder>> {
     Ok(rows)
 }
 
+/// Create a folder, or return the existing one when a folder with the same
+/// name (case-insensitively) is already present.
+///
+/// `folders.name` carries no `UNIQUE` constraint, so without this guard two
+/// folders named "Tech" — or "Tech" and "tech" — could coexist, leaving the
+/// sidebar with confusing near-duplicates. Idempotent-on-name is also exactly
+/// what `folder_id_by_name` (and so OPML import) wants: a feed nested under a
+/// folder whose name already exists must land in *that* folder rather than a
+/// freshly created twin. This mirrors `create_tag`'s case-insensitive dedup.
 pub fn create_folder(conn: &Connection, name: &str) -> AppResult<i64> {
+    // Trim before the dedup lookup and the insert: a name carrying surrounding
+    // whitespace (a pasted OPML `<outline text=" Tech ">`, an accidental
+    // trailing space) is a different string from its trimmed twin, so the
+    // `COLLATE NOCASE` lookup below would miss the existing folder and spawn
+    // the near-duplicate the dedup exists to prevent. Normalising here — the
+    // one chokepoint every caller (UI prompt, OPML import) funnels through —
+    // keeps the invariant independent of any caller-side trimming.
+    let name = name.trim();
+    // Reject an empty/whitespace-only name at the same chokepoint. The
+    // `PromptDialog` guards the interactive path, but `import_opml` reaches
+    // this through `folder_id_by_name` with no such guard: an OPML folder
+    // outline labelled with only whitespace (or an empty `text`/`title`
+    // attribute) would otherwise insert a blank-named folder into the sidebar,
+    // indistinguishable from a glitch and impossible to tell apart from any
+    // other blank folder. Mirrors the guard `rename_feed` already applies.
+    if name.is_empty() {
+        return Err(AppError::code("emptyFolderName"));
+    }
+    if let Some(id) = conn
+        .query_row(
+            "SELECT id FROM folders WHERE name = ?1 COLLATE NOCASE",
+            params![name],
+            |r| r.get::<_, i64>(0),
+        )
+        .optional()?
+    {
+        return Ok(id);
+    }
     conn.execute(
         "INSERT INTO folders(name, position) VALUES (?1, (SELECT COALESCE(MAX(position),0)+1 FROM folders))",
         params![name],
@@ -286,7 +351,36 @@ pub fn create_folder(conn: &Connection, name: &str) -> AppResult<i64> {
     Ok(conn.last_insert_rowid())
 }
 
+/// Rename a folder, rejecting a name that collides with a *different* folder.
+///
+/// `create_folder` collapses same-name folders, so a rename onto an existing
+/// folder's name (or a case variant of it) would otherwise recreate exactly
+/// the near-duplicate that dedup prevents — leaving the two functions
+/// inconsistent. Match case-insensitively and return the localisable
+/// `folderNameExists` code. Renaming a folder to its own name (or a case
+/// change of it) is allowed. Mirrors `rename_tag`.
 pub fn rename_folder(conn: &Connection, id: i64, name: &str) -> AppResult<()> {
+    // Trim so the collision check and the stored value match what `create_folder`
+    // would produce — otherwise a rename to `" Tech "` slips past the clash test
+    // against an existing `"Tech"` and recreates the near-duplicate.
+    let name = name.trim();
+    // Reject an empty/whitespace-only name, the same guard `create_folder` and
+    // `rename_feed` apply: a rename to a blank string would leave the folder
+    // unlabelled in the sidebar with no recovery path short of renaming it
+    // again to something valid.
+    if name.is_empty() {
+        return Err(AppError::code("emptyFolderName"));
+    }
+    let clash: Option<i64> = conn
+        .query_row(
+            "SELECT id FROM folders WHERE name = ?1 COLLATE NOCASE AND id != ?2",
+            params![name, id],
+            |r| r.get(0),
+        )
+        .optional()?;
+    if clash.is_some() {
+        return Err(AppError::code("folderNameExists"));
+    }
     conn.execute("UPDATE folders SET name = ?2 WHERE id = ?1", params![id, name])?;
     Ok(())
 }
@@ -398,10 +492,21 @@ pub fn feeds_to_refresh(conn: &Connection) -> AppResult<Vec<FeedToRefresh>> {
     Ok(rows)
 }
 
-/// Refresh a feed's metadata from its parsed document. A `None` field leaves
-/// the stored value untouched. The feed-supplied `title` is applied only when
-/// the user has *not* renamed the feed by hand (`custom_title = 0`); otherwise
-/// `update_feed_meta` would revert a manual rename on the next poll.
+/// Refresh a feed's metadata from its parsed document. A `None` *or empty*
+/// field leaves the stored value untouched. The feed-supplied `title` is
+/// applied only when the user has *not* renamed the feed by hand
+/// (`custom_title = 0`); otherwise `update_feed_meta` would revert a manual
+/// rename on the next poll.
+///
+/// Empty strings are treated exactly like `None` (`NULLIF(?, '')`): `feed-rs`
+/// parses a `<title></title>` element as `Some("")`, and the scheduler's
+/// refresh path passes the parsed title straight through. Without the
+/// `NULLIF` guard, a feed that momentarily serves an empty `<title>` would
+/// overwrite a perfectly good feed name with a blank string in the sidebar —
+/// `COALESCE` only skips a SQL `NULL`, not an empty string. `add_feed`
+/// already filters empty titles on the subscribe path; this makes the
+/// periodic-refresh path just as safe, and applies the same protection to
+/// the other metadata columns.
 pub fn update_feed_meta(
     conn: &Connection,
     id: i64,
@@ -413,10 +518,10 @@ pub fn update_feed_meta(
     conn.execute(
         "UPDATE feeds SET
             title       = CASE WHEN custom_title = 1 THEN title
-                               ELSE COALESCE(?2, title) END,
-            site_url    = COALESCE(?3, site_url),
-            description = COALESCE(?4, description),
-            favicon_url = COALESCE(?5, favicon_url)
+                               ELSE COALESCE(NULLIF(?2, ''), title) END,
+            site_url    = COALESCE(NULLIF(?3, ''), site_url),
+            description = COALESCE(NULLIF(?4, ''), description),
+            favicon_url = COALESCE(NULLIF(?5, ''), favicon_url)
          WHERE id = ?1",
         params![id, title, site_url, description, favicon_url],
     )?;
@@ -492,17 +597,13 @@ pub fn feeds_for_export(conn: &Connection) -> AppResult<Vec<(String, String, Opt
 }
 
 /// Find a folder by name, creating it if absent. Used during OPML import.
+/// Resolve a folder name to its id, creating the folder when absent. Used by
+/// OPML import to attach imported feeds to their folders. `create_folder` is
+/// itself case-insensitively idempotent, so an OPML folder whose name matches
+/// an existing folder (in any case) reuses that folder instead of spawning a
+/// near-duplicate.
 pub fn folder_id_by_name(conn: &Connection, name: &str) -> AppResult<i64> {
-    if let Some(id) = conn
-        .query_row("SELECT id FROM folders WHERE name = ?1", params![name], |r| {
-            r.get(0)
-        })
-        .optional()?
-    {
-        Ok(id)
-    } else {
-        create_folder(conn, name)
-    }
+    create_folder(conn, name)
 }
 
 pub fn move_feed(conn: &Connection, id: i64, folder_id: Option<i64>) -> AppResult<()> {
@@ -514,6 +615,17 @@ pub fn move_feed(conn: &Connection, id: i64, folder_id: Option<i64>) -> AppResul
 /// raised so a later refresh's `update_feed_meta` does not revert the rename
 /// back to the feed document's own `<title>`.
 pub fn rename_feed(conn: &Connection, id: i64, title: &str) -> AppResult<()> {
+    // Reject an empty/whitespace-only title at the chokepoint. A rename also
+    // sets `custom_title = 1` (iteration 178), which makes `update_feed_meta`
+    // never again overwrite the title from the feed document — so an empty
+    // title would leave the feed *permanently* blank in the sidebar with no
+    // recovery path, not even a refresh. The frontend `PromptDialog` guards
+    // against this, but the backend command is the real chokepoint (other IPC
+    // callers exist), so enforce it here the way `rename_tag` already does.
+    let title = title.trim();
+    if title.is_empty() {
+        return Err(AppError::code("emptyFeedTitle"));
+    }
     conn.execute(
         "UPDATE feeds SET title = ?2, custom_title = 1 WHERE id = ?1",
         params![id, title],
@@ -1141,6 +1253,12 @@ pub fn list_tags(conn: &Connection) -> AppResult<Vec<Tag>> {
 /// than silently diverging. An existing name returns that tag's id instead of
 /// erroring.
 pub fn create_tag(conn: &Connection, name: &str) -> AppResult<i64> {
+    // Trim before the dedup lookup and the insert: a name with surrounding
+    // whitespace is a distinct string from its trimmed twin, so the
+    // `COLLATE NOCASE` lookup would miss the existing tag and spawn a
+    // near-duplicate. Normalise at this one chokepoint so the invariant holds
+    // regardless of caller-side trimming. Mirrors `create_folder`.
+    let name = name.trim();
     if let Some(id) = conn
         .query_row(
             "SELECT id FROM tags WHERE name = ?1 COLLATE NOCASE",
@@ -1181,6 +1299,10 @@ pub fn create_tag(conn: &Connection, name: &str) -> AppResult<i64> {
 /// `list_tags`'s ordering use, and return a localisable `tagNameExists` code.
 /// Renaming a tag to its own current name (or a case change of it) is allowed.
 pub fn rename_tag(conn: &Connection, id: i64, name: &str) -> AppResult<()> {
+    // Trim so the collision check and the stored value match what `create_tag`
+    // would produce — otherwise a rename to a whitespace-padded variant slips
+    // past the clash test and recreates the near-duplicate.
+    let name = name.trim();
     let clash: Option<i64> = conn
         .query_row(
             "SELECT id FROM tags WHERE name = ?1 COLLATE NOCASE AND id != ?2",
@@ -1373,7 +1495,11 @@ pub fn preview_rule(
         _ => &["a.title"],
     };
     // One LIKE clause per (term × column); LIKE wildcards in the term are
-    // escaped so a literal `%` or `_` keyword can't widen the match.
+    // escaped so a literal `%` or `_` keyword can't widen the match. The
+    // column side is folded with `unicode_lower` (not SQLite's ASCII-only
+    // `LOWER`) so it matches the Unicode-aware `to_lowercase()` `rule_matches`
+    // applies — otherwise a keyword like `café` would be counted here but its
+    // `CAFÉ` articles missed, diverging the preview from live ingestion.
     let mut ors: Vec<String> = Vec::new();
     let mut binds: Vec<Value> = Vec::new();
     for term in &terms {
@@ -1382,7 +1508,9 @@ pub fn preview_rule(
             .replace('%', "\\%")
             .replace('_', "\\_");
         for col in cols {
-            ors.push(format!("LOWER(COALESCE({col},'')) LIKE ? ESCAPE '\\'"));
+            ors.push(format!(
+                "unicode_lower(COALESCE({col},'')) LIKE ? ESCAPE '\\'"
+            ));
             binds.push(Value::Text(format!("%{escaped}%")));
         }
     }
@@ -1576,9 +1704,30 @@ pub fn storage_stats(conn: &Connection) -> AppResult<(i64, i64, i64)> {
 /// Wrapping every side in `datetime()` parses both formats to the canonical
 /// representation, so the comparison reflects the real instant.
 pub fn cleanup_old_articles(conn: &Connection, days: i64) -> AppResult<usize> {
+    // A retention window must be a positive number of days. A non-positive
+    // value is meaningless and dangerous: `days = 0` builds the modifier
+    // `'-0 days'`, so the cutoff `datetime('now', '-0 days')` collapses to
+    // *now* and the DELETE purges **every** read article regardless of age;
+    // a negative `days` builds a malformed `'--N days'` modifier that
+    // `datetime()` evaluates to NULL, silently deleting nothing. Neither is a
+    // real retention policy. The Settings UI only ever offers 30/90/180, but
+    // this is the one chokepoint both that command and the background
+    // scheduler funnel through — and the scheduler parses `days` from a
+    // free-form settings string — so reject a non-positive value here rather
+    // than trust every caller. Bail out as a no-op (0 removed).
+    if days <= 0 {
+        return Ok(0);
+    }
+    // Retention deletes only articles the user has not signalled they want to
+    // keep. Starred and read-later are explicit "keep" flags; an article the
+    // user has *highlighted* carries the same intent — the highlights table
+    // cascade-deletes with the article (`ON DELETE CASCADE`), so purging a
+    // highlighted-but-read article would silently destroy that hand-made
+    // annotation layer (feature F7). Exempt any article with highlights.
     Ok(conn.execute(
         "DELETE FROM articles
          WHERE is_starred = 0 AND read_later = 0 AND is_read = 1
+           AND NOT EXISTS (SELECT 1 FROM highlights WHERE article_id = articles.id)
            AND datetime(COALESCE(published_at, fetched_at))
                < datetime('now', ?1)",
         params![format!("-{days} days")],
@@ -1749,6 +1898,10 @@ mod tests {
         let mut conn = Connection::open_in_memory().unwrap();
         conn.pragma_update(None, "foreign_keys", "ON").unwrap();
         MIGRATIONS.to_latest(&mut conn).unwrap();
+        // The production `open` / `open_reader` register custom SQL functions;
+        // the in-memory test connection must too so `preview_rule`'s
+        // `unicode_lower` resolves.
+        register_functions(&conn).unwrap();
         let feed_id = insert_feed(
             &conn,
             "https://example.com/feed.xml",
@@ -2044,6 +2197,35 @@ mod tests {
     }
 
     #[test]
+    fn create_tag_trims_whitespace_and_dedups_padded_names() {
+        // A tag name with surrounding whitespace must resolve to the same tag
+        // as its trimmed form — otherwise the `COLLATE NOCASE` lookup misses
+        // and a visually identical near-duplicate tag is created.
+        let (conn, _aid) = test_db();
+        let rust = create_tag(&conn, "Rust").unwrap();
+        assert_eq!(create_tag(&conn, "  Rust  ").unwrap(), rust);
+        assert_eq!(create_tag(&conn, "\tRust\n").unwrap(), rust);
+        // The stored name is the trimmed form.
+        let go = create_tag(&conn, "  Go ").unwrap();
+        let name: String = conn
+            .query_row("SELECT name FROM tags WHERE id = ?1", [go], |r| r.get(0))
+            .unwrap();
+        assert_eq!(name, "Go");
+        assert_eq!(list_tags(&conn).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn rename_tag_rejects_whitespace_padded_collision() {
+        // A rename to a whitespace-padded variant of another tag's name must
+        // still be rejected — the trim lets the clash check see through it.
+        let (conn, _aid) = test_db();
+        let _rust = create_tag(&conn, "Rust").unwrap();
+        let go = create_tag(&conn, "Go").unwrap();
+        let err = rename_tag(&conn, go, "  Rust  ").unwrap_err();
+        assert!(matches!(err, AppError::Coded("tagNameExists")));
+    }
+
+    #[test]
     fn create_tag_after_middle_delete_sorts_last() {
         // Deleting a tag from the middle of the list leaves a gap in the
         // `position` sequence. A new tag must still land at the end — a
@@ -2257,6 +2439,63 @@ mod tests {
         );
     }
 
+    #[test]
+    fn preview_rule_case_folds_non_ascii_like_live_ingestion() {
+        // `rule_matches` folds case with Rust's Unicode-aware `to_lowercase()`,
+        // so a `café` rule matches a `CAFÉ` article during ingestion. SQLite's
+        // built-in `LOWER()` is ASCII-only and would leave `É` uppercase,
+        // making the preview undercount — `preview_rule` must use the
+        // Unicode-aware `unicode_lower` so its count agrees with ingestion.
+        let (conn, _aid) = test_db();
+        let feed_id: i64 = conn
+            .query_row("SELECT feed_id FROM articles LIMIT 1", [], |r| r.get(0))
+            .unwrap();
+
+        // An article whose title carries an upper-case non-ASCII letter.
+        let article = NewArticle {
+            guid: "g-cafe".into(),
+            url: Some("https://example.com/cafe".into()),
+            title: "CAFÉ CULTURE in Zürich".into(),
+            author: None,
+            summary: None,
+            content_html: None,
+            body_text: "body".into(),
+            image_url: None,
+            published_at: None,
+            enclosures: Vec::new(),
+        };
+        assert!(upsert_article(&conn, feed_id, &article, false, &[]).unwrap());
+
+        // Lower-case non-ASCII keywords must still count the article.
+        for keyword in ["café", "zürich"] {
+            let (count, samples) =
+                preview_rule(&conn, None, "title", keyword).unwrap();
+            assert_eq!(count, 1, "keyword `{keyword}` should match the CAFÉ article");
+            assert_eq!(samples.len(), 1);
+        }
+
+        // And the rule that the preview describes must agree at ingest time:
+        // a `skip` rule on `café` drops a fresh `CAFÉ`-titled article.
+        create_rule(&conn, "no-cafe", None, "title", "café", "skip").unwrap();
+        let rules = active_rules(&conn).unwrap();
+        let fresh = NewArticle {
+            guid: "g-cafe-2".into(),
+            url: Some("https://example.com/cafe2".into()),
+            title: "Another CAFÉ Story".into(),
+            author: None,
+            summary: None,
+            content_html: None,
+            body_text: "body".into(),
+            image_url: None,
+            published_at: None,
+            enclosures: Vec::new(),
+        };
+        assert!(
+            !upsert_article(&conn, feed_id, &fresh, false, &rules).unwrap(),
+            "ingestion must skip the article the `café` preview counted"
+        );
+    }
+
     // ── mark_all_read sync queueing ──────────────────────────────────
 
     #[test]
@@ -2396,6 +2635,76 @@ mod tests {
         assert_eq!(kept, 2, "starred / read-later articles are never purged");
     }
 
+    #[test]
+    fn cleanup_keeps_highlighted_articles() {
+        // A read article the user has highlighted must survive retention: the
+        // highlights cascade-delete with the article, so purging it would
+        // silently destroy the user's annotations. An unhighlighted read
+        // article of the same age is still purged.
+        let (conn, _fixture) = test_db();
+        let feed_id: i64 = conn
+            .query_row("SELECT id FROM feeds", [], |r| r.get(0))
+            .unwrap();
+        let old = (chrono::Utc::now() - chrono::Duration::days(90)).to_rfc3339();
+        insert_read_article_published(&conn, feed_id, "annotated", &old);
+        insert_read_article_published(&conn, feed_id, "plain", &old);
+
+        let annotated_id: i64 = conn
+            .query_row("SELECT id FROM articles WHERE guid = 'annotated'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        insert_highlight(
+            &conn,
+            &hl(annotated_id, "kept quote", "", "", 0, "yellow", ""),
+        )
+        .unwrap();
+
+        let removed = cleanup_old_articles(&conn, 30).unwrap();
+        assert_eq!(removed, 1, "only the unhighlighted read article is purged");
+
+        let surviving: Vec<String> = conn
+            .prepare("SELECT guid FROM articles WHERE guid IN ('annotated','plain')")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(surviving, ["annotated"], "the highlighted article is kept");
+        // And its highlights are intact, not cascade-deleted.
+        assert_eq!(list_highlights(&conn, annotated_id).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn cleanup_with_non_positive_days_is_a_no_op() {
+        // A retention window of 0 days builds the modifier `'-0 days'`, whose
+        // cutoff `datetime('now', '-0 days')` is *now* — left unguarded the
+        // DELETE would purge every read article regardless of age. A negative
+        // window builds a malformed `'--N days'` modifier. Both must be
+        // rejected as no-ops so a bad caller / corrupt setting cannot trigger
+        // a mass deletion.
+        let (conn, _fixture) = test_db();
+        let feed_id: i64 = conn
+            .query_row("SELECT id FROM feeds", [], |r| r.get(0))
+            .unwrap();
+        // A read article published just now — well inside any sane window,
+        // yet `datetime('now', '-0 days')` would still sweep it.
+        let now = chrono::Utc::now().to_rfc3339();
+        insert_read_article_published(&conn, feed_id, "fresh", &now);
+
+        assert_eq!(cleanup_old_articles(&conn, 0).unwrap(), 0, "0 days deletes nothing");
+        assert_eq!(cleanup_old_articles(&conn, -30).unwrap(), 0, "negative days deletes nothing");
+
+        let kept: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM articles WHERE guid = 'fresh'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(kept, 1, "the fresh article survives a non-positive window");
+    }
+
     // ── article-list chronological ordering ──────────────────────────
 
     #[test]
@@ -2517,6 +2826,54 @@ mod tests {
     }
 
     #[test]
+    fn rename_feed_rejects_an_empty_title() {
+        // An empty (or whitespace-only) rename must be refused: a rename sets
+        // `custom_title = 1`, so an empty title would blank the feed in the
+        // sidebar forever — `update_feed_meta` can no longer restore it. The
+        // original title must be left untouched.
+        let (conn, _aid) = test_db();
+        let feed_id: i64 = conn
+            .query_row("SELECT id FROM feeds", [], |r| r.get(0))
+            .unwrap();
+        let original: String = conn
+            .query_row("SELECT title FROM feeds WHERE id = ?1", [feed_id], |r| r.get(0))
+            .unwrap();
+
+        for blank in ["", "   ", "\t\n"] {
+            let err = rename_feed(&conn, feed_id, blank).unwrap_err();
+            assert!(
+                err.to_string().contains("emptyFeedTitle"),
+                "blank rename {blank:?} should be rejected, got: {err}"
+            );
+        }
+
+        let (title, custom): (String, bool) = conn
+            .query_row(
+                "SELECT title, custom_title FROM feeds WHERE id = ?1",
+                [feed_id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(title, original, "a rejected rename must not alter the title");
+        assert!(!custom, "a rejected rename must not set the custom_title flag");
+    }
+
+    #[test]
+    fn rename_feed_trims_surrounding_whitespace() {
+        // A padded name (`"  News  "`) is stored trimmed — the db function is
+        // the single trimming chokepoint, so the command no longer trims.
+        let (conn, _aid) = test_db();
+        let feed_id: i64 = conn
+            .query_row("SELECT id FROM feeds", [], |r| r.get(0))
+            .unwrap();
+        rename_feed(&conn, feed_id, "  Tech News  ").unwrap();
+        let title: String = conn
+            .query_row("SELECT title FROM feeds WHERE id = ?1", [feed_id], |r| r.get(0))
+            .unwrap();
+        assert_eq!(title, "Tech News");
+    }
+
+    #[test]
     fn refresh_updates_title_when_not_renamed() {
         // A feed the user has never renamed should still pick up the feed
         // document's title on refresh — the guard only protects manual names.
@@ -2531,6 +2888,61 @@ mod tests {
             .query_row("SELECT title FROM feeds WHERE id = ?1", [feed_id], |r| r.get(0))
             .unwrap();
         assert_eq!(title, "Renamed Upstream");
+    }
+
+    #[test]
+    fn refresh_with_empty_title_keeps_existing_name() {
+        // `feed-rs` parses `<title></title>` (or a stray empty title) as
+        // `Some("")`, and the scheduler's refresh path forwards it straight
+        // into `update_feed_meta`. An empty string must be treated like
+        // `None` — the feed's good sidebar name must survive, not be wiped
+        // blank. The other metadata columns get the same empty-string guard.
+        let (conn, _aid) = test_db();
+        let feed_id: i64 = conn
+            .query_row("SELECT id FROM feeds", [], |r| r.get(0))
+            .unwrap();
+
+        // Seed real metadata first (the feed has never been renamed by hand).
+        update_feed_meta(
+            &conn,
+            feed_id,
+            Some("Good Feed Name"),
+            Some("https://example.com"),
+            Some("A description"),
+            Some("https://example.com/favicon.ico"),
+        )
+        .unwrap();
+
+        // A later refresh serves empty metadata — every field must be ignored.
+        update_feed_meta(
+            &conn,
+            feed_id,
+            Some(""),
+            Some(""),
+            Some(""),
+            Some(""),
+        )
+        .unwrap();
+
+        let (title, site_url, description, favicon): (
+            String,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+        ) = conn
+            .query_row(
+                "SELECT title, site_url, description, favicon_url FROM feeds WHERE id = ?1",
+                [feed_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(
+            title, "Good Feed Name",
+            "an empty <title> on refresh must not blank the sidebar name"
+        );
+        assert_eq!(site_url.as_deref(), Some("https://example.com"));
+        assert_eq!(description.as_deref(), Some("A description"));
+        assert_eq!(favicon.as_deref(), Some("https://example.com/favicon.ico"));
     }
 
     #[test]
@@ -2574,5 +2986,109 @@ mod tests {
             .query_row("SELECT name FROM tags WHERE id = ?1", [id], |r| r.get(0))
             .unwrap();
         assert_eq!(name, "READING");
+    }
+
+    // --- folders: same name-uniqueness family as tags. `folders.name` has no
+    //     UNIQUE constraint, so create/rename must dedup in code. ---
+
+    #[test]
+    fn create_folder_is_idempotent_on_name() {
+        let (conn, _aid) = test_db();
+        let first = create_folder(&conn, "Tech").unwrap();
+        // Re-creating the same name returns the existing id, not a second row.
+        assert_eq!(create_folder(&conn, "Tech").unwrap(), first);
+        // Case-insensitive: "tech" resolves to the same folder as "Tech".
+        assert_eq!(create_folder(&conn, "tech").unwrap(), first);
+        assert_eq!(list_folders(&conn).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn folder_id_by_name_reuses_existing_folder_case_insensitively() {
+        // OPML import attaches feeds via `folder_id_by_name`; an imported
+        // folder whose name matches an existing one (in any case) must reuse
+        // that folder rather than spawn a near-duplicate.
+        let (conn, _aid) = test_db();
+        let existing = create_folder(&conn, "News").unwrap();
+        assert_eq!(folder_id_by_name(&conn, "news").unwrap(), existing);
+        assert_eq!(list_folders(&conn).unwrap().len(), 1);
+        // A genuinely new name still creates a folder.
+        let fresh = folder_id_by_name(&conn, "Science").unwrap();
+        assert_ne!(fresh, existing);
+        assert_eq!(list_folders(&conn).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn rename_folder_rejects_collision_with_another_folder() {
+        let (conn, _aid) = test_db();
+        let tech = create_folder(&conn, "Tech").unwrap();
+        let news = create_folder(&conn, "News").unwrap();
+
+        // Renaming "News" onto an exact match of "Tech" is rejected with the
+        // localisable code.
+        let err = rename_folder(&conn, news, "Tech").unwrap_err();
+        assert!(
+            matches!(err, AppError::Coded("folderNameExists")),
+            "expected folderNameExists, got {err:?}"
+        );
+        // A case variant of another folder is rejected too.
+        let err = rename_folder(&conn, news, "tech").unwrap_err();
+        assert!(matches!(err, AppError::Coded("folderNameExists")));
+
+        // Neither name was corrupted by the clash check.
+        let name = |id| {
+            conn.query_row("SELECT name FROM folders WHERE id = ?1", [id], |r| {
+                r.get::<_, String>(0)
+            })
+            .unwrap()
+        };
+        assert_eq!(name(tech), "Tech");
+        assert_eq!(name(news), "News");
+    }
+
+    #[test]
+    fn rename_folder_allows_genuine_rename_and_self_case_change() {
+        let (conn, _aid) = test_db();
+        let id = create_folder(&conn, "Misc").unwrap();
+        // A free name is accepted.
+        rename_folder(&conn, id, "Reading").unwrap();
+        // Re-casing the folder's *own* name is allowed (no other folder clashes).
+        rename_folder(&conn, id, "READING").unwrap();
+        let name: String = conn
+            .query_row("SELECT name FROM folders WHERE id = ?1", [id], |r| r.get(0))
+            .unwrap();
+        assert_eq!(name, "READING");
+    }
+
+    #[test]
+    fn create_folder_trims_whitespace_and_dedups_padded_names() {
+        // An OPML-imported folder name carrying surrounding whitespace
+        // (`<outline text=" Tech ">`) must resolve to the same folder as a
+        // plain "Tech" — without the trim the `COLLATE NOCASE` lookup misses
+        // it and a second, visually identical folder is spawned.
+        let (conn, _aid) = test_db();
+        let tech = create_folder(&conn, "Tech").unwrap();
+        assert_eq!(create_folder(&conn, "  Tech  ").unwrap(), tech);
+        assert_eq!(create_folder(&conn, "\tTech\n").unwrap(), tech);
+        // The first creation also stores the trimmed form, not the padded one.
+        let padded = create_folder(&conn, " News ").unwrap();
+        let name: String = conn
+            .query_row("SELECT name FROM folders WHERE id = ?1", [padded], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(name, "News");
+        assert_eq!(list_folders(&conn).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn rename_folder_rejects_whitespace_padded_collision() {
+        // A rename to a whitespace-padded variant of another folder's name
+        // must still be rejected — the trim makes the clash check see through
+        // the padding instead of letting the near-duplicate slip past.
+        let (conn, _aid) = test_db();
+        let _tech = create_folder(&conn, "Tech").unwrap();
+        let news = create_folder(&conn, "News").unwrap();
+        let err = rename_folder(&conn, news, "  Tech  ").unwrap_err();
+        assert!(matches!(err, AppError::Coded("folderNameExists")));
     }
 }

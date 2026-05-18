@@ -632,6 +632,9 @@ button { font-family: inherit; }
   padding: 16px 18px;
   border-radius: 8px;
   overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
   font-family: var(--mono);
   font-size: 13px;
   line-height: 1.55;
@@ -864,6 +867,18 @@ button { font-family: inherit; }
   color: var(--muted);
   font-size: 13px;
 }
+.cp-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 6px 2px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--selected);
+  color: var(--muted);
+  font-size: 12px;
+}
+.cp-notice svg { color: oklch(0.55 0.16 28); flex-shrink: 0; }
 
 .cp-footer {
   display: flex;
@@ -1802,6 +1817,8 @@ button { font-family: inherit; }
   accent-color: var(--accent);
   cursor: pointer;
 }
+/* A live stream / not-yet-loaded track has no finite length to seek within. */
+.player-scrub:disabled { opacity: 0.4; cursor: default; }
 
 /* ====== Tags ====== */
 .tag-dot {

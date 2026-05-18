@@ -62,19 +62,29 @@ impl AiConfig {
         model: Option<String>,
         base_url: Option<String>,
     ) -> AppResult<Self> {
+        // Trim the key: it lands verbatim in an auth header (`x-api-key` /
+        // `Authorization`). A pasted key routinely carries a trailing newline
+        // or space from the clipboard — left in, that either trips reqwest's
+        // header-value validation or earns a 401 from the provider. Trim like
+        // `base_url` already does so the stored value is normalised at the one
+        // chokepoint, independent of any frontend trimming.
         let api_key = api_key
-            .filter(|k| !k.trim().is_empty())
+            .map(|k| k.trim().to_string())
+            .filter(|k| !k.is_empty())
             .ok_or_else(|| AppError::code("noAiKey"))?;
         let provider = match provider.as_deref() {
             Some("openai") => Provider::OpenAi,
             _ => Provider::Anthropic,
         };
-        let model = model.filter(|m| !m.trim().is_empty()).unwrap_or_else(|| {
-            match provider {
+        // Likewise trim the model name — it is JSON-serialised into the
+        // request body, and a stray space/newline yields a "model not found".
+        let model = model
+            .map(|m| m.trim().to_string())
+            .filter(|m| !m.is_empty())
+            .unwrap_or_else(|| match provider {
                 Provider::Anthropic => "claude-sonnet-4-6".to_string(),
                 Provider::OpenAi => "gpt-4.1-mini".to_string(),
-            }
-        });
+            });
         let base_url = base_url
             .map(|u| u.trim().trim_end_matches('/').to_string())
             .filter(|u| !u.is_empty())
@@ -185,6 +195,53 @@ async fn stream_openai(
     consume_sse(resp, channel, Provider::OpenAi).await
 }
 
+/// What to do after handling one SSE line.
+#[derive(Debug)]
+enum LineOutcome {
+    /// Line handled; keep consuming the stream.
+    Continue,
+    /// The frontend dropped the channel — stop and report the result as
+    /// interrupted so the caller does not persist a truncated fragment.
+    ChannelClosed,
+}
+
+/// Process a single SSE line: pull the `data:` payload, surface any provider
+/// error, and forward a text delta to `channel` (appending it to `full`).
+fn handle_sse_line(
+    line: &str,
+    provider: Provider,
+    full: &mut String,
+    channel: &Channel<AiEvent>,
+) -> AppResult<LineOutcome> {
+    let Some(data) = line.trim().strip_prefix("data:") else {
+        return Ok(LineOutcome::Continue);
+    };
+    let data = data.trim();
+    if data.is_empty() || data == "[DONE]" {
+        return Ok(LineOutcome::Continue);
+    }
+    let Ok(value) = serde_json::from_str::<Value>(data) else {
+        return Ok(LineOutcome::Continue);
+    };
+    // Both providers can deliver an error mid-stream after a 200 OK
+    // (rate limit, overload, content filter). Surface it instead of
+    // ending the generation silently with a truncated summary.
+    if let Some(msg) = extract_error(&value, provider) {
+        return Err(AppError::other(format!("AI stream error: {msg}")));
+    }
+    if let Some(text) = extract_delta(&value, provider) {
+        full.push_str(&text);
+        // A send failure means the frontend dropped the channel (the user
+        // closed the AI panel). Stop streaming instead of downloading the
+        // rest of the response into a void.
+        if channel.send(AiEvent::Delta(text)).is_err() {
+            log::debug!("AI stream channel closed; aborting early");
+            return Ok(LineOutcome::ChannelClosed);
+        }
+    }
+    Ok(LineOutcome::Continue)
+}
+
 /// Drive the Server-Sent-Events response, extracting text deltas per provider.
 async fn consume_sse(
     mut resp: reqwest::Response,
@@ -213,33 +270,26 @@ async fn consume_sse(
         while let Some(pos) = buf.iter().position(|&b| b == b'\n') {
             let raw: Vec<u8> = buf.drain(..=pos).collect();
             let line = String::from_utf8_lossy(&raw);
-            let Some(data) = line.trim().strip_prefix("data:") else {
-                continue;
-            };
-            let data = data.trim();
-            if data.is_empty() || data == "[DONE]" {
-                continue;
-            }
-            let Ok(value) = serde_json::from_str::<Value>(data) else {
-                continue;
-            };
-            // Both providers can deliver an error mid-stream after a 200 OK
-            // (rate limit, overload, content filter). Surface it instead of
-            // ending the generation silently with a truncated summary.
-            if let Some(msg) = extract_error(&value, provider) {
-                return Err(AppError::other(format!("AI stream error: {msg}")));
-            }
-            if let Some(text) = extract_delta(&value, provider) {
-                full.push_str(&text);
-                // A send failure means the frontend dropped the channel (the
-                // user closed the AI panel). Stop streaming instead of
-                // downloading the rest of the response into a void — and flag
-                // the result as interrupted so the caller does not persist a
-                // truncated fragment as a finished summary.
-                if channel.send(AiEvent::Delta(text)).is_err() {
-                    log::debug!("AI stream channel closed; aborting early");
+            match handle_sse_line(&line, provider, &mut full, channel)? {
+                LineOutcome::Continue => {}
+                LineOutcome::ChannelClosed => {
                     return Ok(ChatOutcome { text: full, completed: false });
                 }
+            }
+        }
+    }
+    // The stream ended. A standards-compliant provider newline-terminates
+    // every frame, but a custom OpenAI-compatible endpoint (a local LLM
+    // server, which the base-URL override explicitly allows) may close the
+    // connection right after the final `data:` line with no trailing newline.
+    // Without this, that last frame — carrying the closing token(s) of the
+    // response — would be left unprocessed in `buf` and silently dropped.
+    if !buf.is_empty() {
+        let line = String::from_utf8_lossy(&buf);
+        match handle_sse_line(&line, provider, &mut full, channel)? {
+            LineOutcome::Continue => {}
+            LineOutcome::ChannelClosed => {
+                return Ok(ChatOutcome { text: full, completed: false });
             }
         }
     }
@@ -345,5 +395,131 @@ mod tests {
             extract_delta(&chunk, Provider::Anthropic).as_deref(),
             Some("world")
         );
+    }
+
+    // --- handle_sse_line: per-line parsing, including the final unterminated
+    //     frame a non-compliant endpoint may close the stream on. ---
+
+    use super::{handle_sse_line, AiEvent, LineOutcome};
+    use std::sync::{Arc, Mutex};
+    use tauri::ipc::{Channel, InvokeResponseBody};
+
+    /// A `Channel<AiEvent>` whose every sent delta is recorded into the
+    /// returned buffer — lets the line parser be exercised without a webview.
+    fn recording_channel() -> (Channel<AiEvent>, Arc<Mutex<Vec<String>>>) {
+        let received = Arc::new(Mutex::new(Vec::new()));
+        let sink = received.clone();
+        let channel = Channel::new(move |body: InvokeResponseBody| {
+            let json = match body {
+                InvokeResponseBody::Json(s) => s,
+                InvokeResponseBody::Raw(b) => String::from_utf8_lossy(&b).into_owned(),
+            };
+            let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+            if v["type"] == "delta" {
+                sink.lock().unwrap().push(v["data"].as_str().unwrap().to_string());
+            }
+            Ok(())
+        });
+        (channel, received)
+    }
+
+    #[test]
+    fn sse_line_forwards_a_delta() {
+        let (channel, got) = recording_channel();
+        let mut full = String::new();
+        let line = "data: {\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n";
+        let out = handle_sse_line(line, Provider::OpenAi, &mut full, &channel).unwrap();
+        assert!(matches!(out, LineOutcome::Continue));
+        assert_eq!(full, "hi");
+        assert_eq!(*got.lock().unwrap(), vec!["hi"]);
+    }
+
+    #[test]
+    fn sse_line_ignores_non_data_and_done_lines() {
+        let (channel, got) = recording_channel();
+        let mut full = String::new();
+        for line in [": keep-alive comment\n", "data: [DONE]\n", "\n"] {
+            handle_sse_line(line, Provider::OpenAi, &mut full, &channel).unwrap();
+        }
+        assert!(full.is_empty());
+        assert!(got.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn sse_line_surfaces_a_mid_stream_error() {
+        let (channel, _got) = recording_channel();
+        let mut full = String::new();
+        let line = "data: {\"error\":{\"message\":\"rate limited\"}}\n";
+        let err = handle_sse_line(line, Provider::OpenAi, &mut full, &channel).unwrap_err();
+        assert!(err.to_string().contains("rate limited"));
+    }
+
+    #[test]
+    fn sse_final_frame_without_trailing_newline_is_not_dropped() {
+        // A custom OpenAI-compatible endpoint may close the connection right
+        // after the last `data:` line with no trailing `\n`. The closing
+        // token must still be parsed — `handle_sse_line` is fed the leftover
+        // buffer verbatim, exactly as `consume_sse` does after the read loop.
+        let (channel, got) = recording_channel();
+        let mut full = String::new();
+        let last = "data: {\"choices\":[{\"delta\":{\"content\":\"!\"}}]}";
+        handle_sse_line(last, Provider::OpenAi, &mut full, &channel).unwrap();
+        assert_eq!(full, "!");
+        assert_eq!(*got.lock().unwrap(), vec!["!"]);
+    }
+
+    // --- AiConfig::new: normalising pasted credentials. ---
+
+    use super::AiConfig;
+
+    #[test]
+    fn config_trims_whitespace_off_a_pasted_api_key() {
+        // A key copied from a webpage commonly carries a trailing newline /
+        // spaces; left in, it breaks the auth header.
+        let cfg = AiConfig::new(
+            Some("openai".into()),
+            Some("  sk-abc123\n".into()),
+            None,
+            None,
+        )
+        .expect("a key with surrounding whitespace is still a usable key");
+        assert_eq!(cfg.api_key, "sk-abc123");
+    }
+
+    #[test]
+    fn config_trims_whitespace_off_a_pasted_model_name() {
+        let cfg = AiConfig::new(
+            Some("anthropic".into()),
+            Some("sk-key".into()),
+            Some(" claude-sonnet-4-6 ".into()),
+            None,
+        )
+        .unwrap();
+        assert_eq!(cfg.model, "claude-sonnet-4-6");
+    }
+
+    #[test]
+    fn config_rejects_a_whitespace_only_api_key() {
+        // Trimmed to empty — treated as "no key set", not a usable credential.
+        // `AiConfig` deliberately holds no `Debug` impl (it carries a secret),
+        // so match the result rather than `unwrap_err`.
+        match AiConfig::new(Some("openai".into()), Some("   \n".into()), None, None) {
+            Ok(_) => panic!("a whitespace-only key must not be accepted"),
+            Err(e) => assert!(e.to_string().contains("noAiKey")),
+        }
+    }
+
+    #[test]
+    fn config_falls_back_to_the_default_model_for_a_blank_one() {
+        // A whitespace-only model name trims to empty and must yield the
+        // provider default, not an empty string in the request body.
+        let cfg = AiConfig::new(
+            Some("openai".into()),
+            Some("sk-key".into()),
+            Some("  ".into()),
+            None,
+        )
+        .unwrap();
+        assert_eq!(cfg.model, "gpt-4.1-mini");
     }
 }

@@ -218,18 +218,35 @@ fn map_entry(e: &Entry, base: &str) -> Option<NewArticle> {
 
 /// Detect the source type from a feed/site URL — drives differentiated UI.
 pub fn detect_source_type(url: &str) -> SourceType {
-    let host = Url::parse(url)
-        .ok()
+    let parsed = Url::parse(url).ok();
+    let host = parsed
+        .as_ref()
         .and_then(|u| u.host_str().map(|h| h.to_lowercase()))
         .unwrap_or_default();
     if host.contains("youtube.com") || host.contains("youtu.be") {
         SourceType::Youtube
     } else if host.contains("bsky.app") || host.contains("bsky.social") {
         SourceType::Bluesky
+    } else if is_reddit_feed(&host, parsed.as_ref().map(|u| u.path()).unwrap_or("")) {
+        // A Reddit subreddit `.rss` feed is fully recognisable from the URL —
+        // host plus an `/r/<sub>` path. Classifying it here means an
+        // OPML-imported subreddit feed gets its Reddit badge from the start
+        // (`import_opml` only ever sees the URL); `normalize_source` already
+        // tags the interactive `add_feed` path.
+        SourceType::Reddit
     } else {
         // Mastodon and podcast detection happen after parsing (see refine_source_type).
         SourceType::Rss
     }
+}
+
+/// True when `host` + `path` look like a Reddit subreddit RSS feed
+/// (`reddit.com` or a subdomain such as `www.`/`old.`, with an `/r/<sub>`
+/// path). The Reddit front page feed (`/.rss`, no `/r/`) is intentionally
+/// excluded — it is a generic aggregate, not a subreddit source.
+fn is_reddit_feed(host: &str, path: &str) -> bool {
+    let is_reddit_host = host == "reddit.com" || host.ends_with(".reddit.com");
+    is_reddit_host && path.split('/').find(|s| !s.is_empty()) == Some("r")
 }
 
 /// Refine the source type once a feed has been parsed (e.g. audio enclosures
@@ -248,6 +265,11 @@ pub fn refine_source_type(initial: SourceType, parsed: &ParsedFeed, feed_url: &s
     }
     if feed_url.contains("/@") && feed_url.ends_with(".rss") {
         return SourceType::Mastodon;
+    }
+    // Reddit subreddit feeds are URL-recognisable; re-checking here lets a feed
+    // imported before Reddit detection existed self-heal on its next refresh.
+    if detect_source_type(feed_url) == SourceType::Reddit {
+        return SourceType::Reddit;
     }
     SourceType::Rss
 }
@@ -286,8 +308,50 @@ pub fn looks_like_feed(bytes: &[u8]) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{clamp_publish_date, mime_from_url, resolve_url};
+    use super::{clamp_publish_date, detect_source_type, mime_from_url, resolve_url};
+    use crate::models::SourceType;
     use chrono::{Duration, Utc};
+
+    #[test]
+    fn detects_reddit_subreddit_feed_from_url() {
+        // A subreddit `.rss` feed, on any reddit host, is classified as
+        // Reddit purely from its URL — so an OPML-imported subreddit feed
+        // gets its badge from the first poll, not stuck as plain `rss`.
+        for url in [
+            "https://www.reddit.com/r/rust/.rss",
+            "https://reddit.com/r/rust/.rss",
+            "https://old.reddit.com/r/rust/top/.rss",
+            "https://www.reddit.com/r/rust/",
+        ] {
+            assert_eq!(
+                detect_source_type(url),
+                SourceType::Reddit,
+                "expected Reddit for {url}"
+            );
+        }
+    }
+
+    #[test]
+    fn reddit_front_page_feed_is_not_classified_as_a_subreddit() {
+        // The site-wide aggregate feed (no `/r/<sub>`) is a generic feed.
+        assert_eq!(
+            detect_source_type("https://www.reddit.com/.rss"),
+            SourceType::Rss
+        );
+    }
+
+    #[test]
+    fn non_reddit_url_is_not_classified_as_reddit() {
+        // A lookalike host must not be mistaken for Reddit.
+        assert_eq!(
+            detect_source_type("https://notreddit.com/r/rust/.rss"),
+            SourceType::Rss
+        );
+        assert_eq!(
+            detect_source_type("https://example.com/feed.xml"),
+            SourceType::Rss
+        );
+    }
 
     #[test]
     fn resolve_url_keeps_absolute_links_unchanged() {

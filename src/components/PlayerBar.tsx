@@ -93,6 +93,15 @@ export default function PlayerBar() {
 
   if (!track) return null;
 
+  // A finite, seekable upper bound. The element's `duration` is `Infinity`
+  // for a live stream and `NaN` before metadata loads — feeding either into
+  // the `<input type="range">` `max` makes the browser reject the attribute
+  // and fall back to its default max of 100, which pins the thumb to the far
+  // right and turns a drag into a meaningless 0–100s seek. `clock(duration)`
+  // still gets the raw value so an unknown total shows as "–:––".
+  const seekMax = Number.isFinite(duration) && duration > 0 ? duration : 0;
+  const seekable = seekMax > 0;
+
   const seek = (to: number) => {
     const el = audioRef.current;
     if (el && isFinite(to)) {
@@ -101,7 +110,7 @@ export default function PlayerBar() {
     }
   };
   const nudge = (delta: number) =>
-    seek(Math.min(duration || Infinity, Math.max(0, time + delta)));
+    seek(Math.min(seekMax || Infinity, Math.max(0, time + delta)));
   const cycleRate = () => {
     // indexOf is -1 for an unknown rate, so this lands on the first entry.
     const i = PLAYBACK_RATES.indexOf(rate as (typeof PLAYBACK_RATES)[number]);
@@ -217,9 +226,13 @@ export default function PlayerBar() {
             className="player-scrub"
             type="range"
             min={0}
-            max={duration || 0}
+            max={seekMax}
             step={1}
-            value={Math.min(time, duration || 0)}
+            value={Math.min(time, seekMax)}
+            // A live stream / not-yet-loaded media has no finite length to
+            // seek within — leave the scrubber inert rather than letting it
+            // pretend an absolute position the element can't honour.
+            disabled={!seekable}
             onChange={(e) => seek(Number(e.target.value))}
             aria-label={t("player.seek")}
             // Announce the elapsed time, not the raw second count.

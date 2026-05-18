@@ -142,7 +142,11 @@ export default function TagPicker({
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && createAndAttach()}
+          onKeyDown={(e) => {
+            // Skip the Enter that confirms an IME candidate (CJK input) so a
+            // half-composed draft isn't turned into a tag.
+            if (e.key === "Enter" && !e.nativeEvent.isComposing) createAndAttach();
+          }}
           placeholder={t("tagPicker.createPlaceholder")}
           aria-label={t("tagPicker.createPlaceholder")}
         />

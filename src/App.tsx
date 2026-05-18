@@ -267,16 +267,47 @@ export default function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      const inField = tag === "INPUT" || tag === "TEXTAREA";
       const mod = e.metaKey || e.ctrlKey;
 
+      // The modifier-key shortcuts (⌘K / ⌘, / ⌘R) are *application-global* —
+      // they must fire regardless of where focus sits. The INPUT/TEXTAREA
+      // guard below only suppresses the single-key list/reader shortcuts so a
+      // plain "j" typed into a search box doesn't navigate; it must not block
+      // a ⌘-combo. Crucially, the command palette and Settings each own a
+      // focused text field, so gating these on focus would make ⌘K / ⌘, fail
+      // to *close* their own dialog — the one path Escape isn't the only key
+      // for — leaving the toggle-off comment below describing dead behaviour.
+
+      // ⌘K / ⌘, open their own modal. Firing them while another modal is
+      // already open would stack a second dialog on top — two focus traps
+      // then fight over the keyboard, and dismissing the inner one drops
+      // focus to nowhere. So suppress the *open* half when a blocking modal
+      // is up; the *close* (toggle-off) half stays live so ⌘K still shuts
+      // the command palette and ⌘, still shuts Settings.
       if (mod && e.key.toLowerCase() === "k") {
         e.preventDefault();
+        const cpOpen = !!document.querySelector(".cp-backdrop");
+        if (
+          !cpOpen &&
+          document.querySelector(
+            ".settings-backdrop, .modal-backdrop, .tag-picker, .hl-popover",
+          )
+        )
+          return;
         setCpOpen((o) => !o);
         return;
       }
       if (mod && e.key === ",") {
         e.preventDefault();
+        const settingsOpen = !!document.querySelector(".settings-backdrop");
+        if (
+          !settingsOpen &&
+          document.querySelector(
+            ".cp-backdrop, .modal-backdrop, .tag-picker, .hl-popover",
+          )
+        )
+          return;
         setSettings((s) => ({ open: !s.open }));
         return;
       }
@@ -286,6 +317,12 @@ export default function App() {
         return;
       }
       if (mod) return;
+
+      // Past this point only the single-key list/reader shortcuts remain —
+      // a bare "j" / "s" / "a" etc. Those must never fire while the user is
+      // typing into a text field, so bail once the modifier combos above
+      // have had their chance.
+      if (inField) return;
 
       // Skip list/reader shortcuts while any overlay owns the keyboard.
       // `.hl-popover` is the highlight edit dialog inside the reader and

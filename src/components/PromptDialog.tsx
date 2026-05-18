@@ -72,7 +72,9 @@ export default function PromptDialog({
           aria-label={placeholder ?? title}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") submit();
+            // Ignore the Enter that confirms an IME candidate (CJK input) —
+            // otherwise it submits the dialog with a half-composed name.
+            if (e.key === "Enter" && !e.nativeEvent.isComposing) submit();
           }}
           style={{ marginTop: 8 }}
         />

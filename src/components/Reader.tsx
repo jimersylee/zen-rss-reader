@@ -27,6 +27,46 @@ function youtubeId(url: string | null): string | null {
   return m ? m[1] : null;
 }
 
+/** Plain, entity-decoded text of an HTML body — for the reading-time estimate.
+ *  A bare `replace(/<[^>]+>/g, " ")` tag-strip leaves HTML entities intact, so
+ *  `Tom &amp; Jerry &mdash; done` would be counted as 5 words / 28 chars when
+ *  the real text ("Tom & Jerry — done") is 4 words / 18 chars — inflating the
+ *  estimate on entity-heavy articles. Parsing into an inert document decodes
+ *  every entity (`&amp;` → `&`, `&mdash;` → `—`) and drops markup cleanly. */
+function bodyPlainText(html: string): string {
+  if (!html) return "";
+  // DOMParser documents are inert — nothing here executes or loads.
+  return new DOMParser().parseFromString(html, "text/html").body.textContent ?? "";
+}
+
+/** CJK ideographs + Japanese kana + Korean Hangul — scripts read by the
+ *  character, not the whitespace-delimited word. */
+const CJK_CHAR = /[぀-ヿ㐀-鿿가-힯豈-﫿]/u;
+
+/** Estimate reading time in minutes for an article body's plain text.
+ *
+ *  A mixed-script estimate: CJK scripts have no word spacing, so they are
+ *  counted by the character (~480 chars/min); latin-script text is counted by
+ *  the whitespace-delimited word (~220 wpm). The two contributions are *summed*
+ *  — the previous `Math.max(words/220, chars/480)` always lost for English
+ *  (a 1000-word article spans ~5500 chars, so `chars/480` ≈ 11 dwarfed the
+ *  true `words/220` ≈ 4.5), inflating every latin-script article ~2-3×. */
+function estimateReadMinutes(text: string): number {
+  let cjkChars = 0;
+  for (const ch of text) {
+    if (CJK_CHAR.test(ch)) cjkChars++;
+  }
+  // Words, with CJK characters stripped so they are not also counted as
+  // single-character "words" by the latin path.
+  const latinWords = text
+    .replace(/[぀-ヿ㐀-鿿가-힯豈-﫿]/gu, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+  const minutes = cjkChars / 480 + latinWords / 220;
+  return Math.max(2, Math.round(minutes));
+}
+
 /** Decode a URL fragment, tolerating a malformed `%` escape. A real-world
  *  anchor can carry a literal percent (`#100%-growth`, `#section-50%`), which
  *  is not a valid escape sequence — `decodeURIComponent` throws `URIError` on
@@ -130,15 +170,7 @@ export default function Reader({ onToast }: Props) {
   const a: ArticleDetail | undefined = article.data;
 
   const readMinutes = useMemo(() => {
-    const html = a?.extractedHtml || a?.contentHtml || "";
-    const words = html
-      .replace(/<[^>]+>/g, " ")
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean).length;
-    const chars = html.replace(/<[^>]+>/g, "").length;
-    // mixed CJK / latin estimate
-    return Math.max(2, Math.round(Math.max(words / 220, chars / 480)));
+    return estimateReadMinutes(bodyPlainText(a?.extractedHtml || a?.contentHtml || ""));
     // Recompute when the body changes — including after full-text extraction
     // replaces the short feed snippet, which keeps the same article id.
   }, [a?.extractedHtml, a?.contentHtml]);
@@ -206,7 +238,14 @@ export default function Reader({ onToast }: Props) {
   useEffect(() => {
     if (!autoExtract || !a || !a.url || a.extractedHtml) return;
     if (autoExtractedRef.current === a.id || extract.isPending) return;
-    const plain = (a.contentHtml || "").replace(/<[^>]+>/g, "").trim();
+    // Measure the *decoded* text, not the raw markup. A bare `<[^>]+>` tag
+    // strip leaves HTML entities intact, so an entity-heavy stub
+    // (`&nbsp;`-padded copy, `&mdash;`/`&amp;` runs) is over-counted — a
+    // genuinely short snippet can clear the 800-char bar and wrongly look
+    // "complete", leaving the reader showing the very stub auto-extract is
+    // meant to replace. `bodyPlainText` decodes entities and drops markup
+    // cleanly, the same measurement the reading-time estimate already uses.
+    const plain = bodyPlainText(a.contentHtml || "").trim();
     if (plain.length >= 800) return; // feed already delivers the full text
     autoExtractedRef.current = a.id;
     extract.mutate(a.id);

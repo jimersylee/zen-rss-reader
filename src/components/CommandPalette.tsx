@@ -203,7 +203,9 @@ export default function CommandPalette({
       e.preventDefault();
       keyboardNav.current = true;
       setActive((i) => (i - 1 + items.length) % Math.max(items.length, 1));
-    } else if (e.key === "Enter") {
+    } else if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+      // `isComposing` skips the Enter that only confirms an IME candidate
+      // (CJK search input) — without it the first result fires mid-typing.
       e.preventDefault();
       const it = items[active];
       if (it) run(it);
@@ -292,6 +294,18 @@ export default function CommandPalette({
               {renderGroup("action", t("commandPalette.groupActions"))}
               {renderGroup("feed", t("commandPalette.groupFeeds"))}
               {renderGroup("article", t("commandPalette.groupArticles"))}
+              {/* The article search failing must not be masked just because an
+                  action or feed still matched the query — `items.length` would
+                  then be non-zero and the empty-state error branch above never
+                  shows. Surface the failure as a trailing notice instead, so a
+                  partial result list still tells the user article search broke
+                  rather than silently omitting matches. */}
+              {articleResults.isError && debounced.length > 0 && (
+                <div className="cp-notice" role="status">
+                  <Icon name="alert" size={13} />
+                  {t("commandPalette.searchError")}
+                </div>
+              )}
             </>
           )}
         </div>
