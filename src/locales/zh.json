@@ -524,6 +524,7 @@
     "noAiKey": "尚未设置 AI API Key，请在「设置 → 高级」中填写",
     "emptyTagName": "标签名称不能为空",
     "emptyFeedTitle": "订阅源名称不能为空",
+    "emptyFolderName": "文件夹名称不能为空",
     "tagNameExists": "已存在同名标签",
     "folderNameExists": "已存在同名文件夹",
     "emptyRuleQuery": "请为规则至少输入一个关键词",

@@ -188,6 +188,36 @@ mod tests {
     }
 
     #[test]
+    fn blank_folder_label_imports_feeds_as_ungrouped() {
+        // A folder outline labelled with only whitespace must not carry that
+        // blank name down to `db::create_folder` (which now rejects an empty
+        // name and would abort the whole transactional import). Its feeds
+        // import ungrouped instead.
+        let xml = "<opml version=\"2.0\"><head/><body>\
+            <outline text=\"   \">\
+                <outline text=\"Feed\" xmlUrl=\"https://b.example/f\"/>\
+            </outline>\
+        </body></opml>";
+        let feeds = parse(xml).expect("parse");
+        assert_eq!(feeds.len(), 1);
+        assert!(
+            feeds[0].folder.is_none(),
+            "a whitespace-only folder label must resolve to ungrouped"
+        );
+    }
+
+    #[test]
+    fn blank_feed_label_falls_back_to_url() {
+        // A feed outline whose `text` is only whitespace is treated as
+        // unlabelled — its URL is the last-resort title, not a blank string.
+        let xml = "<opml version=\"2.0\"><head/><body>\
+            <outline text=\"  \" xmlUrl=\"https://u.example/f\"/>\
+        </body></opml>";
+        let feeds = parse(xml).expect("parse");
+        assert_eq!(feeds[0].title, "https://u.example/f");
+    }
+
+    #[test]
     fn parse_rejects_malformed_document() {
         assert!(parse("not opml at all").is_err());
     }

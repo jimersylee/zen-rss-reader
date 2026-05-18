@@ -3091,4 +3091,40 @@ mod tests {
         let err = rename_folder(&conn, news, "  Tech  ").unwrap_err();
         assert!(matches!(err, AppError::Coded("folderNameExists")));
     }
+
+    #[test]
+    fn create_folder_rejects_an_empty_or_blank_name() {
+        // An empty / whitespace-only name must be refused at the DB chokepoint:
+        // `import_opml` reaches `create_folder` through `folder_id_by_name`
+        // without the `PromptDialog` guard, so a blank label would otherwise
+        // insert an unlabelled folder into the sidebar. No row may be created.
+        let (conn, _aid) = test_db();
+        for blank in ["", "   ", "\t\n"] {
+            let err = create_folder(&conn, blank).unwrap_err();
+            assert!(
+                matches!(err, AppError::Coded("emptyFolderName")),
+                "blank name {blank:?} must be rejected"
+            );
+        }
+        assert!(list_folders(&conn).unwrap().is_empty());
+    }
+
+    #[test]
+    fn rename_folder_rejects_an_empty_or_blank_name() {
+        // Renaming a folder to a blank string would leave it unlabelled with
+        // no recovery path — rejected the same way `create_folder` is.
+        let (conn, _aid) = test_db();
+        let tech = create_folder(&conn, "Tech").unwrap();
+        for blank in ["", "   ", "\t\n"] {
+            let err = rename_folder(&conn, tech, blank).unwrap_err();
+            assert!(matches!(err, AppError::Coded("emptyFolderName")));
+        }
+        // The folder keeps its original name.
+        let name: String = conn
+            .query_row("SELECT name FROM folders WHERE id = ?1", [tech], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(name, "Tech");
+    }
 }
