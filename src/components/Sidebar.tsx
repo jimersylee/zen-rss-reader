@@ -466,10 +466,12 @@ export default function Sidebar({
     <div className="sidebar" role="navigation">
       {isMac && <div className="titlebar" data-tauri-drag-region />}
 
-      <div className="sb-brand">
-        <img className="sb-brand-mark" src="/papr.svg" alt="" />
-        <span className="sb-brand-name">Papr</span>
-      </div>
+      {isMac && (
+        <div className="sb-brand">
+          <img className="sb-brand-mark" src="/papr.svg" alt="" />
+          <span className="sb-brand-name">Papr</span>
+        </div>
+      )}
 
       <div
         className="sidebar-search"

@@ -725,35 +725,6 @@ pub fn delete_newsletter_source(conn: &Connection, feed_id: i64) -> AppResult<()
     Ok(())
 }
 
-// ─────────────────────────── first-run seed ───────────────────────────
-
-/// Built-in subscriptions for a fresh install — feeds programmers tend to like.
-const DEFAULT_FEEDS: &[(&str, &str)] = &[
-    ("Hacker News", "https://hnrss.org/frontpage"),
-    ("Lobsters", "https://lobste.rs/rss"),
-    ("Rust Blog", "https://blog.rust-lang.org/feed.xml"),
-    ("The GitHub Blog", "https://github.blog/feed/"),
-    ("Julia Evans", "https://jvns.ca/atom.xml"),
-    ("Simon Willison", "https://simonwillison.net/atom/everything/"),
-    ("Overreacted — Dan Abramov", "https://overreacted.io/rss.xml"),
-    ("Martin Fowler", "https://martinfowler.com/feed.atom"),
-];
-
-/// Seed the default feeds on first launch. Returns true if seeding ran (so the
-/// caller can trigger an immediate refresh); a no-op on every later launch.
-pub fn seed_default_feeds(conn: &Connection) -> AppResult<bool> {
-    if get_setting(conn, "seeded")?.is_some() {
-        return Ok(false);
-    }
-    let folder = create_folder(conn, "Tech")?;
-    for (title, url) in DEFAULT_FEEDS {
-        // All defaults are plain RSS/Atom; classification refines after fetch.
-        let _ = insert_feed(conn, url, None, title, None, SourceType::Rss, Some(folder));
-    }
-    set_setting(conn, "seeded", "1")?;
-    Ok(true)
-}
-
 // ─────────────────────────── articles ───────────────────────────
 
 /// A parsed article ready for insertion.
@@ -1767,9 +1738,9 @@ pub fn clear_all_data(conn: &Connection) -> AppResult<()> {
     Ok(())
 }
 
-/// Clear every stored setting except the first-run seed marker.
+/// Clear every stored setting.
 pub fn reset_settings(conn: &Connection) -> AppResult<()> {
-    conn.execute("DELETE FROM settings WHERE key != 'seeded'", [])?;
+    conn.execute("DELETE FROM settings", [])?;
     Ok(())
 }
 

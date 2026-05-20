@@ -72,8 +72,6 @@ pub fn run() {
             fs::create_dir_all(&data_dir).ok();
             let db_path = data_dir.join("papr.db");
             let conn = db::open(&db_path).expect("open database");
-            // On the very first launch, subscribe to a curated set of feeds.
-            let seeded = db::seed_default_feeds(&conn).unwrap_or(false);
             // A small pool of read-only connections for UI queries — under WAL
             // they run concurrently with the writer, so the interface stays
             // responsive while a background refresh is writing.
@@ -138,14 +136,6 @@ pub fn run() {
 
             // ── Background refresh scheduler ──────────────────────────
             ingestion::scheduler::spawn_scheduler(app.handle().clone());
-
-            // After first-run seeding, fetch the default feeds right away.
-            if seeded {
-                let handle = app.handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    let _ = ingestion::scheduler::refresh_all(&handle, None, true).await;
-                });
-            }
 
             // Reflect the current unread count on the Dock badge at launch.
             let badge_handle = app.handle().clone();
