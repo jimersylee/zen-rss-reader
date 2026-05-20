@@ -514,9 +514,19 @@ pub async fn ai_summarize(
     if body.trim().is_empty() {
         return Err(AppError::code("noArticleBody"));
     }
+    // The drawer renders the response as markdown (.ai-prose styles paragraphs,
+    // bullets, and bold), so we ask for structured output instead of a single
+    // dense paragraph — the reader can scan a TL;DR + bullets far faster.
     let system = format!(
-        "You are a sharp news editor. Summarize the article in 3-4 \
-         clear, factual sentences. Output only the summary prose.{lang}"
+        "You are a sharp news editor. Summarize the article so a reader can \
+         decide whether to read it in full.\n\n\
+         Format the response in markdown using exactly this shape:\n\
+         **TL;DR** — One sentence capturing the single most important point.\n\n\
+         - Key fact, finding, or claim (under ~20 words)\n\
+         - Another key point\n\
+         - 3 to 5 bullets total, one idea each, no nested bullets\n\n\
+         Output only this structure. No preamble, no closing remarks, no \
+         section headers, no extra prose.{lang}"
     );
     let user = format!("Title: {title}\n\n{}", truncate(&body, 8000));
 
