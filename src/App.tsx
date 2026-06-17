@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import * as api from "./api";
 import { useUi, READER_FONTS } from "./store";
@@ -34,12 +35,17 @@ const ACCENTS: Record<
   ink: { accent: "oklch(0.30 0.02 50)", soft: "oklch(0.92 0.005 50)", ink: "oklch(0.20 0.01 50)", dAccent: "oklch(0.86 0.005 50)", dSoft: "oklch(0.30 0.005 50)", dInk: "oklch(0.92 0.005 50)" },
 };
 
-// Native window background per dark-shade. Must match each shade's `--paper`
-// in styles.css so a window resize never flashes a mismatched strip.
-const DARK_PAPER: Record<DarkShade, string> = {
-  default: "#16140F",
-  dimmer: "#0E0C08",
-  black: "#000000",
+// Native window backing per dark-shade. The webview is made non-opaque in
+// lib.rs (to kill the white resize flash), so a resize exposes THIS colour in
+// the strip the webview hasn't repainted yet. Use each shade's `--reader`
+// (the widest pane, 1fr, and the right/bottom edge a resize is dragged from)
+// rather than the darker `--paper` floor — otherwise the exposed strip flashes
+// a shade darker than the reader content it sits next to. Mirrors `--reader`
+// in styles.css.
+const DARK_BACKING: Record<DarkShade, string> = {
+  default: "#25201F",
+  dimmer: "#1C1715",
+  black: "#15100F",
 };
 
 export default function App() {
@@ -82,13 +88,15 @@ export default function App() {
     root.style.setProperty("--accent", dark ? a.dAccent : a.accent);
     root.style.setProperty("--accent-soft", dark ? a.dSoft : a.soft);
     root.style.setProperty("--accent-ink", dark ? a.dInk : a.ink);
-    // Keep the native window/webview background on the themed paper colour, so
-    // a live window resize never flashes a mismatched colour in the strip the
-    // webview has not repainted yet. Mirrors --paper in styles.css, including
-    // the dark-shade override.
-    getCurrentWindow()
-      .setBackgroundColor(dark ? DARK_PAPER[darkShade] : "#F6F3EC")
-      .catch(() => {});
+    // Keep the native window backing on the themed reader colour. The webview is
+    // non-opaque on macOS (see lib.rs), so a live resize exposes the NSWindow
+    // background in the strip the webview hasn't repainted yet — use --reader so
+    // that strip blends with the reader pane it sits next to. (On Win/Linux the
+    // webview is opaque, so setBackgroundColor here mainly covers their own
+    // resize/overscroll; harmless on macOS where it's the NSWindow colour.)
+    const backing = dark ? DARK_BACKING[darkShade] : "#FBF9F3";
+    getCurrentWindow().setBackgroundColor(backing).catch(() => {});
+    getCurrentWebview().setBackgroundColor(backing).catch(() => {});
   }, [theme, darkShade, accent, density]);
 
   // ── dismiss the boot splash once the app shell has mounted ──
