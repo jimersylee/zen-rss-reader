@@ -10,8 +10,6 @@ import type { ArticleQuery } from "./types";
 export type Theme = "light" | "dark";
 /** Background depth for the dark theme. Only meaningful while `theme` is
  *  "dark"; lets users pick a darker paper than the default warm charcoal. */
-export type DarkShade = "default" | "dimmer" | "black";
-export type Accent = "clay" | "pine" | "indigo" | "ink";
 export type Density = "compact" | "cozy" | "spacious";
 export type ViewMode = "list" | "card";
 export type StartupView = "all" | "unread" | "starred" | "last";
@@ -109,11 +107,17 @@ interface UiState {
   unreadOnly: boolean;
   /** Sort the list oldest-first instead of newest-first. */
   sortOldest: boolean;
+  /** Offset of the first page the middle-pane list loads — its paging anchor.
+   *  Normally 0 (newest first). Opening an article from search that lives far
+   *  down the list jumps the anchor to that article's page so the list loads
+   *  *only* that page and pages outward from there, instead of every page above
+   *  it. Part of the list's React Query key, so `currentList` reads the same
+   *  window the user sees. Reset to 0 on any list-context change (feed / filter
+   *  / sort). */
+  listAnchor: number;
 
   // appearance preferences
   theme: Theme;
-  darkShade: DarkShade;
-  accent: Accent;
   density: Density;
   viewMode: ViewMode;
   readerFont: ReaderFont;
@@ -137,15 +141,19 @@ interface UiState {
    *  DOM — including modals — so it must be torn down while one is up, or it
    *  occludes the dialog (issue #54). The reader effect watches this flag. */
   modalOpen: boolean;
+  /** A floating context menu is open. Same hazard as `modalOpen`: a context
+   *  menu raised over the reading area would be occluded by the native
+   *  original-page webview that floats above the DOM (issue #74), so the
+   *  reader suspends that view while a menu is up. */
+  menuOpen: boolean;
 
   select: (query: ArticleQuery, label: string) => void;
   openArticle: (id: number | null) => void;
   toggleUnreadOnly: () => void;
   toggleSort: () => void;
+  setListAnchor: (offset: number) => void;
 
   setTheme: (t: Theme) => void;
-  setDarkShade: (s: DarkShade) => void;
-  setAccent: (a: Accent) => void;
   setDensity: (d: Density) => void;
   setViewMode: (v: ViewMode) => void;
   setReaderFont: (v: ReaderFont) => void;
@@ -157,6 +165,7 @@ interface UiState {
   setFocusMode: (v: boolean) => void;
   setAiOpen: (v: boolean) => void;
   setModalOpen: (v: boolean) => void;
+  setMenuOpen: (v: boolean) => void;
 }
 
 const PREF_KEYS: (keyof Prefs)[] = [
@@ -182,10 +191,12 @@ function mirrorTheme(theme: Theme): void {
   api.setSetting("theme", theme).catch(() => {});
 }
 
-/** Mirror the dark-shade choice to the backend so the native window can be
- *  painted in the matching colour before the first webview frame (lib.rs). */
-function mirrorDarkShade(shade: DarkShade): void {
-  api.setSetting("dark_shade", shade).catch(() => {});
+/** Pin the backend's `dark_shade` to the single shipped shade so the native
+ *  window paints the matching colour before the first webview frame (lib.rs),
+ *  and any value persisted by an older build that exposed a shade picker is
+ *  normalised back to "default". */
+function mirrorDarkShade(): void {
+  api.setSetting("dark_shade", "default").catch(() => {});
 }
 
 /** Resolve the persisted reader font, migrating the pre-0.2 boolean
@@ -221,14 +232,9 @@ export const useUi = create<UiState>((set) => ({
   selectedArticleId: null,
   unreadOnly: false,
   sortOldest: false,
+  listAnchor: 0,
 
   theme: ls.oneOf<Theme>("theme", ["light", "dark"], "light"),
-  darkShade: ls.oneOf<DarkShade>(
-    "darkShade",
-    ["default", "dimmer", "black"],
-    "default",
-  ),
-  accent: ls.oneOf<Accent>("accent", ["clay", "pine", "indigo", "ink"], "clay"),
   density: ls.oneOf<Density>(
     "density",
     ["compact", "cozy", "spacious"],
@@ -254,20 +260,22 @@ export const useUi = create<UiState>((set) => ({
   focusMode: false,
   aiOpen: false,
   modalOpen: false,
+  menuOpen: false,
 
   select: (query, label) => {
     // Remember the selection so the "open on startup: last view" preference
     // can restore it next launch.
     ls.set("lastView", JSON.stringify({ query, label }));
-    set({ query, queryLabel: label, selectedArticleId: null });
+    // Reset the paging anchor: a new selection always opens at the newest page.
+    set({ query, queryLabel: label, selectedArticleId: null, listAnchor: 0 });
   },
   openArticle: (id) => set({ selectedArticleId: id }),
-  toggleUnreadOnly: () => set((s) => ({ unreadOnly: !s.unreadOnly })),
-  toggleSort: () => set((s) => ({ sortOldest: !s.sortOldest })),
+  // Toggling a filter/sort rebuilds the list, so re-anchor to the newest page.
+  toggleUnreadOnly: () => set((s) => ({ unreadOnly: !s.unreadOnly, listAnchor: 0 })),
+  toggleSort: () => set((s) => ({ sortOldest: !s.sortOldest, listAnchor: 0 })),
+  setListAnchor: (listAnchor) => set({ listAnchor }),
 
   setTheme: (theme) => { ls.set("theme", theme); mirrorTheme(theme); set({ theme }); },
-  setDarkShade: (darkShade) => { ls.set("darkShade", darkShade); mirrorDarkShade(darkShade); set({ darkShade }); },
-  setAccent: (accent) => { ls.set("accent", accent); set({ accent }); },
   setDensity: (density) => { ls.set("density", density); set({ density }); },
   setViewMode: (viewMode) => { ls.set("viewMode", viewMode); set({ viewMode }); },
   setReaderFont: (readerFont) => { ls.set("readerFont", readerFont); set({ readerFont }); },
@@ -323,10 +331,11 @@ export const useUi = create<UiState>((set) => ({
   setFocusMode: (focusMode) => set({ focusMode }),
   setAiOpen: (aiOpen) => set({ aiOpen }),
   setModalOpen: (modalOpen) => set({ modalOpen }),
+  setMenuOpen: (menuOpen) => set({ menuOpen }),
 }));
 
 // Seed the backend's theme copy on startup so an existing install — whose
 // theme has lived only in localStorage until now — still gets the native
 // launch background themed correctly from the next launch onward.
 mirrorTheme(useUi.getState().theme);
-mirrorDarkShade(useUi.getState().darkShade);
+mirrorDarkShade();

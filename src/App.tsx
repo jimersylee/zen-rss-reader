@@ -7,7 +7,6 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import * as api from "./api";
 import { useUi, READER_FONTS } from "./store";
-import type { DarkShade } from "./store";
 import { useArticleActions } from "./hooks/articleActions";
 import { readCurrentItems } from "./lib/currentList";
 import { checkForUpdates } from "./lib/updater";
@@ -26,37 +25,27 @@ import ResizeHandle from "./components/ResizeHandle";
 import Icon from "./components/Icon";
 import { PANEL_BOUNDS } from "./store";
 
-// Accent palettes — ported from the design prototype (app.jsx ACCENTS).
-const ACCENTS: Record<
-  string,
-  { accent: string; soft: string; ink: string; dAccent: string; dSoft: string; dInk: string }
-> = {
-  clay: { accent: "oklch(0.60 0.13 38)", soft: "oklch(0.94 0.04 50)", ink: "oklch(0.42 0.10 38)", dAccent: "oklch(0.74 0.13 45)", dSoft: "oklch(0.32 0.06 40)", dInk: "oklch(0.80 0.10 45)" },
-  pine: { accent: "oklch(0.50 0.10 165)", soft: "oklch(0.94 0.04 160)", ink: "oklch(0.38 0.08 165)", dAccent: "oklch(0.72 0.11 170)", dSoft: "oklch(0.30 0.05 165)", dInk: "oklch(0.80 0.08 170)" },
-  indigo: { accent: "oklch(0.52 0.14 268)", soft: "oklch(0.94 0.04 270)", ink: "oklch(0.40 0.12 268)", dAccent: "oklch(0.74 0.13 270)", dSoft: "oklch(0.30 0.06 268)", dInk: "oklch(0.82 0.10 270)" },
-  ink: { accent: "oklch(0.30 0.02 50)", soft: "oklch(0.92 0.005 50)", ink: "oklch(0.20 0.01 50)", dAccent: "oklch(0.86 0.005 50)", dSoft: "oklch(0.30 0.005 50)", dInk: "oklch(0.92 0.005 50)" },
+// The single accent — terracotta clay. "One accent, used rarely"; it is a
+// fixed brand mark, not a user preference, so it lives here rather than in
+// Settings. (Ported from the design prototype's ACCENTS.clay.)
+const ACCENT = {
+  accent: "oklch(0.60 0.13 38)", soft: "oklch(0.94 0.04 50)", ink: "oklch(0.42 0.10 38)",
+  dAccent: "oklch(0.74 0.13 45)", dSoft: "oklch(0.32 0.06 40)", dInk: "oklch(0.80 0.10 45)",
 };
 
-// Native window backing per dark-shade. The webview is made non-opaque in
+// Native window backing for the dark theme. The webview is made non-opaque in
 // lib.rs (to kill the white resize flash), so a resize exposes THIS colour in
-// the strip the webview hasn't repainted yet. Use each shade's `--reader`
-// (the widest pane, 1fr, and the right/bottom edge a resize is dragged from)
-// rather than the darker `--paper` floor — otherwise the exposed strip flashes
-// a shade darker than the reader content it sits next to. Mirrors `--reader`
-// in styles.css.
-const DARK_BACKING: Record<DarkShade, string> = {
-  default: "#25201F",
-  dimmer: "#1C1715",
-  black: "#15100F",
-};
+// the strip the webview hasn't repainted yet. Use `--reader` (the widest pane,
+// 1fr, and the right/bottom edge a resize is dragged from) rather than the
+// darker `--paper` floor — otherwise the exposed strip flashes a shade darker
+// than the reader content it sits next to. Mirrors `--reader` in styles.css.
+const DARK_BACKING = "#1D1E1F";
 
 export default function App() {
   const { t } = useTranslation();
   const qc = useQueryClient();
 
   const theme = useUi((s) => s.theme);
-  const darkShade = useUi((s) => s.darkShade);
-  const accent = useUi((s) => s.accent);
   const density = useUi((s) => s.density);
   const readerFont = useUi((s) => s.readerFont);
   const readerSize = useUi((s) => s.readerSize);
@@ -95,9 +84,8 @@ export default function App() {
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.theme = theme;
-    root.dataset.darkShade = darkShade;
     root.dataset.density = density;
-    const a = ACCENTS[accent] ?? ACCENTS.clay;
+    const a = ACCENT;
     const dark = theme === "dark";
     root.style.setProperty("--accent", dark ? a.dAccent : a.accent);
     root.style.setProperty("--accent-soft", dark ? a.dSoft : a.soft);
@@ -108,10 +96,10 @@ export default function App() {
     // that strip blends with the reader pane it sits next to. (On Win/Linux the
     // webview is opaque, so setBackgroundColor here mainly covers their own
     // resize/overscroll; harmless on macOS where it's the NSWindow colour.)
-    const backing = dark ? DARK_BACKING[darkShade] : "#FBF9F3";
+    const backing = dark ? DARK_BACKING : "#FBF9F3";
     getCurrentWindow().setBackgroundColor(backing).catch(() => {});
     getCurrentWebview().setBackgroundColor(backing).catch(() => {});
-  }, [theme, darkShade, accent, density]);
+  }, [theme, density]);
 
   // ── dismiss the boot splash once the app shell has mounted ──
   useEffect(() => {

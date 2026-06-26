@@ -13,6 +13,7 @@ import { modKey, modCombo } from "../lib/platform";
 import { reportError } from "../toast";
 import { checkForUpdates } from "../lib/updater";
 import { downloadFile } from "../lib/download";
+import { NO_AUTOCORRECT } from "../lib/inputProps";
 import type { Feed, Rule, RuleAction, RuleField, RulePreview } from "../types";
 import Icon, { type IconName } from "./Icon";
 import ConfirmDialog from "./ConfirmDialog";
@@ -25,18 +26,20 @@ interface Props {
   onAddFeed: () => void;
 }
 
-// `labelKey` holds an i18n key — resolved with t() at render time.
-const SECTIONS: { id: string; labelKey: string; icon: IconName; color: string }[] = [
-  { id: "general", labelKey: "settings.nav.general", icon: "settings", color: "#7a756c" },
-  { id: "appearance", labelKey: "settings.nav.appearance", icon: "globe", color: "#bb6743" },
-  { id: "reading", labelKey: "settings.nav.reading", icon: "eye", color: "#3a4cb8" },
-  { id: "subscriptions", labelKey: "settings.nav.subscriptions", icon: "rss", color: "#d97706" },
-  { id: "filters", labelKey: "settings.nav.filters", icon: "mute", color: "#9333ea" },
-  { id: "sync", labelKey: "settings.nav.sync", icon: "refresh", color: "#2c8a3e" },
-  { id: "shortcuts", labelKey: "settings.nav.shortcuts", icon: "command", color: "#5a5fc4" },
-  { id: "notifications", labelKey: "settings.nav.notifications", icon: "inbox", color: "#a8501f" },
-  { id: "advanced", labelKey: "settings.nav.advanced", icon: "sort", color: "#4a4a4a" },
-  { id: "about", labelKey: "settings.nav.about", icon: "sparkle", color: "#111" },
+// `labelKey` holds an i18n key — resolved with t() at render time. Nav icons
+// stay monochrome (quiet ink, accent only on the active row) — one accent,
+// used rarely, never a decorative rainbow of per-section colours.
+const SECTIONS: { id: string; labelKey: string; icon: IconName }[] = [
+  { id: "general", labelKey: "settings.nav.general", icon: "settings" },
+  { id: "appearance", labelKey: "settings.nav.appearance", icon: "globe" },
+  { id: "reading", labelKey: "settings.nav.reading", icon: "eye" },
+  { id: "subscriptions", labelKey: "settings.nav.subscriptions", icon: "rss" },
+  { id: "filters", labelKey: "settings.nav.filters", icon: "mute" },
+  { id: "sync", labelKey: "settings.nav.sync", icon: "refresh" },
+  { id: "shortcuts", labelKey: "settings.nav.shortcuts", icon: "command" },
+  { id: "notifications", labelKey: "settings.nav.notifications", icon: "inbox" },
+  { id: "advanced", labelKey: "settings.nav.advanced", icon: "sort" },
+  { id: "about", labelKey: "settings.nav.about", icon: "sparkle" },
 ];
 
 /** The app version read from the Tauri bundle config at runtime, cached so the
@@ -120,8 +123,8 @@ export default function SettingsDialog({
               className={`settings-nav-item ${section === s.id ? "active" : ""}`}
               onClick={() => setSection(s.id)}
             >
-              <span className="nav-ico" style={{ background: s.color }}>
-                <Icon name={s.icon} size={11} color="#fff" />
+              <span className="nav-ico">
+                <Icon name={s.icon} size={15} />
               </span>
               {t(s.labelKey)}
             </div>
@@ -550,23 +553,12 @@ function AppearanceSection() {
   const { t, i18n } = useTranslation();
   const theme = useUi((s) => s.theme);
   const setTheme = useUi((s) => s.setTheme);
-  const darkShade = useUi((s) => s.darkShade);
-  const setDarkShade = useUi((s) => s.setDarkShade);
-  const accent = useUi((s) => s.accent);
-  const setAccent = useUi((s) => s.setAccent);
   const density = useUi((s) => s.density);
   const setDensity = useUi((s) => s.setDensity);
   const viewMode = useUi((s) => s.viewMode);
   const setViewMode = useUi((s) => s.setViewMode);
   const prefs = useUi((s) => s.prefs);
   const setPref = useUi((s) => s.setPref);
-
-  const accents = [
-    { value: "clay", color: "#bb6743", label: t("settings.appearance.accentClay") },
-    { value: "pine", color: "#3d7a5e", label: t("settings.appearance.accentPine") },
-    { value: "indigo", color: "#5a5fc4", label: t("settings.appearance.accentIndigo") },
-    { value: "ink", color: "#2b2620", label: t("settings.appearance.accentInk") },
-  ] as const;
 
   return (
     <>
@@ -597,40 +589,6 @@ function AppearanceSection() {
             ]}
             onChange={setTheme}
           />
-        </Row>
-        {theme === "dark" && (
-          <Row
-            label={t("settings.appearance.darkShade")}
-            desc={t("settings.appearance.darkShadeDesc")}
-          >
-            <Segmented
-              value={darkShade}
-              options={[
-                { value: "default", label: t("settings.appearance.darkShadeDefault") },
-                { value: "dimmer", label: t("settings.appearance.darkShadeDimmer") },
-                { value: "black", label: t("settings.appearance.darkShadeBlack") },
-              ]}
-              onChange={setDarkShade}
-            />
-          </Row>
-        )}
-        <Row
-          label={t("settings.appearance.accent")}
-          desc={t("settings.appearance.accentDesc")}
-        >
-          <div className="s-swatches" role="group">
-            {accents.map((a) => (
-              <button
-                key={a.value}
-                className={`s-swatch ${accent === a.value ? "on" : ""}`}
-                style={{ background: a.color }}
-                onClick={() => setAccent(a.value)}
-                title={a.label}
-                aria-label={a.label}
-                aria-pressed={accent === a.value}
-              />
-            ))}
-          </div>
         </Row>
       </div>
       <div className="settings-group">
@@ -891,6 +849,7 @@ function SubscriptionsSection({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t("settings.subscriptions.searchPlaceholder")}
+              {...NO_AUTOCORRECT}
               style={{
                 flex: 1,
                 border: 0,
@@ -1005,9 +964,7 @@ function RsshubInstanceGroup() {
             if (e.key === "Enter") e.currentTarget.blur();
           }}
           placeholder="https://rsshub.app"
-          spellCheck={false}
-          autoCapitalize="off"
-          autoCorrect="off"
+          {...NO_AUTOCORRECT}
           style={{
             width: 220,
             padding: "5px 9px",
@@ -1166,6 +1123,7 @@ function SyncSection({ onToast }: { onToast: (m: string) => void }) {
                 className="modal-input"
                 style={{ margin: 0 }}
                 placeholder={t("settings.sync.serverPlaceholder")}
+                {...NO_AUTOCORRECT}
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
               />
@@ -1173,6 +1131,7 @@ function SyncSection({ onToast }: { onToast: (m: string) => void }) {
                 className="modal-input"
                 style={{ margin: 0 }}
                 placeholder={t("settings.sync.userPlaceholder")}
+                {...NO_AUTOCORRECT}
                 value={user}
                 onChange={(e) => setUser(e.target.value)}
               />
@@ -1185,6 +1144,7 @@ function SyncSection({ onToast }: { onToast: (m: string) => void }) {
                     ? t("settings.sync.appPassPlaceholder")
                     : t("settings.sync.passPlaceholder")
                 }
+                {...NO_AUTOCORRECT}
                 value={pass}
                 onChange={(e) => setPass(e.target.value)}
               />
@@ -1526,6 +1486,7 @@ function NetworkGroup({ onToast }: { onToast: (m: string) => void }) {
         >
           <input
             className="s-text-input"
+            {...NO_AUTOCORRECT}
             value={customProxy}
             placeholder="http://host:port"
             onChange={(e) => setCustomProxy(e.target.value)}
@@ -1581,8 +1542,12 @@ function DangerZone({ onToast }: { onToast: (m: string) => void }) {
         if (
           k.startsWith("pref.") ||
           [
-            "theme", "accent", "density", "viewMode", "readerFont", "useSerif",
-            "readerSize", "readerLeading", "readerWidth", "collapsedFolders",
+            // "accent" / "darkShade" are intentionally still cleared: they
+            // remove any value persisted by older builds that exposed an
+            // accent picker / dark-shade picker.
+            "theme", "accent", "darkShade", "density", "viewMode", "readerFont",
+            "useSerif", "readerSize", "readerLeading", "readerWidth",
+            "collapsedFolders",
           ].includes(k)
         ) {
           localStorage.removeItem(k);
@@ -1767,6 +1732,7 @@ function AiSettingsGroup({ onToast }: { onToast: (m: string) => void }) {
         <input
           className="s-text-input"
           type="password"
+          {...NO_AUTOCORRECT}
           value={apiKey}
           placeholder="sk-…"
           onChange={(e) => setApiKey(e.target.value)}
@@ -1789,6 +1755,7 @@ function AiSettingsGroup({ onToast }: { onToast: (m: string) => void }) {
         <input
           className="s-text-input"
           type="text"
+          {...NO_AUTOCORRECT}
           value={model}
           placeholder={placeholder}
           onChange={(e) => setModel(e.target.value)}
@@ -1811,6 +1778,7 @@ function AiSettingsGroup({ onToast }: { onToast: (m: string) => void }) {
         <input
           className="s-text-input"
           type="text"
+          {...NO_AUTOCORRECT}
           value={baseUrl}
           placeholder={baseUrlPlaceholder}
           onChange={(e) => setBaseUrl(e.target.value)}
@@ -2117,12 +2085,14 @@ function RuleEditor({
     <div className="rule-card">
       <input
         className="rule-input"
+        {...NO_AUTOCORRECT}
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder={t("settings.filters.namePlaceholder")}
       />
       <input
         className="rule-input"
+        {...NO_AUTOCORRECT}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder={t("settings.filters.queryPlaceholder")}
