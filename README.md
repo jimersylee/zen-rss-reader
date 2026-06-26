@@ -4,7 +4,7 @@
 
 # Papr
 
-A fast, native RSS reader for the desktop.
+A fast, native RSS reader for the desktop — with an agent-facing CLI.
 
 <img src="docs/screenshot.webp" alt="Papr" width="820" />
 
@@ -26,7 +26,7 @@ A fast, native RSS reader for the desktop.
 
 ### macOS
 
-Install with [Homebrew](https://brew.sh):
+Install the desktop app with [Homebrew](https://brew.sh):
 
 ```sh
 brew install --cask l0ng-ai/papr/papr
@@ -35,3 +35,33 @@ brew install --cask l0ng-ai/papr/papr
 ### All platforms
 
 Download the installer for your platform from the [latest release](https://github.com/l0ng-ai/papr/releases/latest).
+
+## The `papr` CLI — for agents
+
+`papr` is a token-efficient, command-line companion for **autonomous agents** to
+drive Papr over the shell. It reads the same local database as the app (via the
+shared `papr-core` crate), so an agent can work your feeds with no GUI:
+
+- **Read** — `feeds`, `list`, `read`, full-text `search`
+- **Triage** — `mark` read/star/later, `extract` full text, `refresh`
+- **Manage** — subscriptions, folders, tags, rules, highlights, OPML
+- **Sync** — FreshRSS / Miniflux
+- **Agent-native output** — [TOON](https://toonformat.dev) on stdout (~40% fewer
+  tokens than JSON), minimal schemas, definitive counts, structured exit codes
+
+```sh
+brew install l0ng-ai/papr/papr-cli
+```
+
+### Plug it into your agent with the `papr-rss` skill
+
+The bundled **[`papr-rss` skill](skills/papr-rss/SKILL.md)** is the easiest way to
+hand a skill-aware agent (Claude Code, Codex, OpenCode…) the keys to your feeds.
+Install it in one line with [`skills`](https://github.com/vercel-labs/skills):
+
+```sh
+npx skills add https://github.com/l0ng-ai/papr/tree/main/skills/papr-rss
+```
+
+See **[docs/cli.md](docs/cli.md)** for the full command reference and install
+options.
