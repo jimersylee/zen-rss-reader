@@ -378,7 +378,7 @@
       "userPlaceholder": "用户名",
       "passPlaceholder": "密码 / API 密码",
       "appPassPlaceholder": "应用密码 (Application password)",
-      "minifluxPassHint": "Miniflux 必须使用应用密码 —— 请在 Miniflux 账号的「设置 → API Keys」中生成一个。",
+      "minifluxPassHint": "Miniflux 需先在「设置 → 集成 → Google Reader API」中启用，并填写那里设置的 Google Reader 用户名与密码。",
       "connecting": "连接中…",
       "connect": "连接",
       "otherServices": "其它服务",
