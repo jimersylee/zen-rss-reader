@@ -378,7 +378,7 @@
       "userPlaceholder": "ユーザー名",
       "passPlaceholder": "パスワード / API パスワード",
       "appPassPlaceholder": "アプリケーションパスワード",
-      "minifluxPassHint": "Miniflux ではアプリケーションパスワードが必要です。Miniflux の「設定 → API Keys」で発行してください。",
+      "minifluxPassHint": "Miniflux では「設定 → 連携 → Google Reader API」を有効にし、そこで設定した Google Reader ユーザー名とパスワードを使用してください。",
       "connecting": "接続中…",
       "connect": "接続",
       "otherServices": "その他のサービス",
