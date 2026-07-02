@@ -413,6 +413,7 @@
       "global": "全局",
       "commandPalette": "命令面板",
       "refreshAll": "刷新所有订阅源",
+      "debugLogs": "调试日志",
       "addFeed": "添加订阅源",
       "openSettings": "设置"
     },
@@ -452,6 +453,10 @@
       "cleanupDone": "已清理 {{count}} 篇旧文章",
       "cleanupNone": "没有需要清理的文章",
       "vacuumDone": "数据库已压缩",
+      "logs": "日志文件",
+      "logsDesc": "按日期保存的应用调试日志",
+      "openLogs": "打开日志目录",
+      "logDirOpened": "已打开日志目录",
       "network": "网络",
       "proxy": "代理",
       "proxySystem": "跟随系统",

@@ -19,6 +19,7 @@ import CommandPalette, { type CommandAction } from "./components/CommandPalette"
 import SettingsDialog from "./components/SettingsDialog";
 import AddFeedDialog from "./components/AddFeedDialog";
 import ExploreDialog from "./components/ExploreDialog";
+import DebugLogPanel from "./components/DebugLogPanel";
 import PromptDialog from "./components/PromptDialog";
 import PlayerBar from "./components/PlayerBar";
 import ResizeHandle from "./components/ResizeHandle";
@@ -69,6 +70,7 @@ export default function App() {
   const [addFeedUrl, setAddFeedUrl] = useState<string | undefined>(undefined);
   // The standalone Explore (curated-directory marketplace) dialog.
   const [explore, setExplore] = useState(false);
+  const [debugLogs, setDebugLogs] = useState(false);
   const [newFolder, setNewFolder] = useState(false);
 
   // Mirror "any covering modal is open" into the store. The reader's
@@ -77,8 +79,8 @@ export default function App() {
   // reader watches this flag and tears the view down while a modal is up.
   const setModalOpen = useUi((s) => s.setModalOpen);
   useEffect(() => {
-    setModalOpen(cpOpen || settings.open || addFeed || explore || newFolder);
-  }, [cpOpen, settings.open, addFeed, explore, newFolder, setModalOpen]);
+    setModalOpen(cpOpen || settings.open || addFeed || explore || debugLogs || newFolder);
+  }, [cpOpen, settings.open, addFeed, explore, debugLogs, newFolder, setModalOpen]);
 
   // ── apply appearance to the document root ──
   useEffect(() => {
@@ -349,7 +351,7 @@ export default function App() {
         if (
           !cpOpen &&
           document.querySelector(
-            ".settings-backdrop, .modal-backdrop, .tag-picker, .hl-popover",
+            ".settings-backdrop, .modal-backdrop, .debug-log-backdrop, .tag-picker, .hl-popover",
           )
         )
           return;
@@ -362,7 +364,7 @@ export default function App() {
         if (
           !settingsOpen &&
           document.querySelector(
-            ".cp-backdrop, .modal-backdrop, .tag-picker, .hl-popover",
+            ".cp-backdrop, .modal-backdrop, .debug-log-backdrop, .tag-picker, .hl-popover",
           )
         )
           return;
@@ -372,6 +374,11 @@ export default function App() {
       if (mod && e.key.toLowerCase() === "r") {
         e.preventDefault();
         doRefresh();
+        return;
+      }
+      if (mod && e.shiftKey && e.key.toLowerCase() === "l") {
+        e.preventDefault();
+        setDebugLogs((v) => !v);
         return;
       }
       if (mod) return;
@@ -391,7 +398,7 @@ export default function App() {
       // the AI drawer instead of just the overlay.
       if (
         document.querySelector(
-          ".cp-backdrop, .settings-backdrop, .modal-backdrop, .ctx-menu, .tag-picker, .hl-popover, .hl-toolbar",
+          ".cp-backdrop, .settings-backdrop, .modal-backdrop, .debug-log-backdrop, .ctx-menu, .tag-picker, .hl-popover, .hl-toolbar",
         )
       )
         return;
@@ -551,6 +558,8 @@ export default function App() {
           onToast={showToast}
         />
       )}
+
+      {debugLogs && <DebugLogPanel onClose={() => setDebugLogs(false)} />}
 
       {newFolder && (
         <PromptDialog

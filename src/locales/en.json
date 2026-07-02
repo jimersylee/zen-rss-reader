@@ -413,6 +413,7 @@
       "global": "Global",
       "commandPalette": "Command palette",
       "refreshAll": "Refresh all feeds",
+      "debugLogs": "Debug logs",
       "addFeed": "Add feed",
       "openSettings": "Settings"
     },
@@ -452,6 +453,10 @@
       "cleanupDone": "Cleaned up {{count}} old articles",
       "cleanupNone": "No articles need cleaning up",
       "vacuumDone": "Database compacted",
+      "logs": "Log files",
+      "logsDesc": "Daily app logs used for debugging",
+      "openLogs": "Open log folder",
+      "logDirOpened": "Log folder opened",
       "network": "Network",
       "proxy": "Proxy",
       "proxySystem": "Follow system",

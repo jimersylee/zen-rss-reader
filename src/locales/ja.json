@@ -413,6 +413,7 @@
       "global": "全体",
       "commandPalette": "コマンドパレット",
       "refreshAll": "すべてのフィードを更新",
+      "debugLogs": "デバッグログ",
       "addFeed": "フィードを追加",
       "openSettings": "設定"
     },
@@ -452,6 +453,10 @@
       "cleanupDone": "{{count}} 件の古い記事を消去しました",
       "cleanupNone": "消去が必要な記事はありません",
       "vacuumDone": "データベースを圧縮しました",
+      "logs": "ログファイル",
+      "logsDesc": "日付ごとに保存されるアプリのデバッグログ",
+      "openLogs": "ログフォルダを開く",
+      "logDirOpened": "ログフォルダを開きました",
       "network": "ネットワーク",
       "proxy": "プロキシ",
       "proxySystem": "システムに従う",

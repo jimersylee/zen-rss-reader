@@ -1491,6 +1491,93 @@ button { font-family: inherit; }
 }
 .settings-close:hover { background: var(--hover); color: var(--ink); }
 
+.debug-log-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 160;
+  background: rgba(20, 18, 16, 0.26);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: cp-in .15s ease;
+}
+.debug-log-window {
+  width: min(1040px, 94vw);
+  height: min(680px, 88vh);
+  background: var(--panel-2);
+  border: 1px solid var(--hair-strong);
+  border-radius: 12px;
+  box-shadow: var(--shadow-modal), var(--shadow-ring);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+}
+.debug-log-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--hair);
+}
+.debug-log-head h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--ink);
+}
+.debug-log-head p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.debug-log-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.debug-log-close {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.debug-log-close:hover { background: var(--hover); color: var(--ink); }
+.debug-log-list {
+  overflow: auto;
+  padding: 8px 0;
+  background: var(--panel);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.debug-log-row {
+  display: grid;
+  grid-template-columns: 94px 58px minmax(120px, 220px) minmax(0, 1fr);
+  gap: 10px;
+  padding: 2px 12px;
+  color: var(--ink-2);
+}
+.debug-log-row.warn,
+.debug-log-row.error { color: var(--danger); }
+.debug-log-row.debug,
+.debug-log-target { color: var(--muted); }
+.debug-log-level {
+  font-weight: 700;
+  color: inherit;
+}
+.debug-log-target,
+.debug-log-msg {
+  overflow-wrap: anywhere;
+}
+
 .settings-scroll {
   flex: 1;
   overflow-y: auto;

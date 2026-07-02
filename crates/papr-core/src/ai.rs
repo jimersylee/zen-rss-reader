@@ -29,7 +29,9 @@ async fn ensure_success(resp: Response, service: &str) -> AppResult<Response> {
     }
     let status = resp.status();
     let detail = resp.text().await.unwrap_or_default();
-    Err(AppError::other(format!("{service} error {status}: {detail}")))
+    Err(AppError::other(format!(
+        "{service} error {status}: {detail}"
+    )))
 }
 
 /// Per-request cap for AI streaming. The shared HTTP client carries the
@@ -129,6 +131,12 @@ impl AiConfig {
             .map(|u| u.trim().trim_end_matches('/').to_string())
             .filter(|u| !u.is_empty())
             .unwrap_or_else(|| provider.default_base_url().to_string());
+        log::info!(
+            "ai: config resolved provider={} model={} base_url={}",
+            provider.label(),
+            model,
+            base_url
+        );
         Ok(AiConfig {
             provider,
             api_key,
@@ -145,6 +153,14 @@ impl AiConfig {
 }
 
 impl Provider {
+    fn label(self) -> &'static str {
+        match self {
+            Provider::Anthropic => "anthropic",
+            Provider::OpenAi => "openai",
+            Provider::DeepSeek => "deepseek",
+        }
+    }
+
     /// The official API root for this provider, used when the user has not
     /// set a custom base URL.
     fn default_base_url(self) -> &'static str {
@@ -190,11 +206,29 @@ pub async fn stream_chat(
     sink: &mut DeltaSink<'_>,
     max_tokens: u32,
 ) -> AppResult<ChatOutcome> {
-    if cfg.provider.is_openai_compatible() {
+    log::info!(
+        "ai: stream start provider={} model={} max_tokens={} system_chars={} user_chars={}",
+        cfg.provider.label(),
+        cfg.model,
+        max_tokens,
+        system.chars().count(),
+        user.chars().count()
+    );
+    let result = if cfg.provider.is_openai_compatible() {
         stream_openai(client, cfg, system, user, sink, max_tokens).await
     } else {
         stream_anthropic(client, cfg, system, user, sink, max_tokens).await
+    };
+    match &result {
+        Ok(outcome) => log::info!(
+            "ai: stream finished provider={} completed={} output_chars={}",
+            cfg.provider.label(),
+            outcome.completed,
+            outcome.text.chars().count()
+        ),
+        Err(e) => log::warn!("ai: stream failed provider={}: {e}", cfg.provider.label()),
     }
+    result
 }
 
 /// Run a completion to the end and return its full text WITHOUT forwarding
@@ -207,13 +241,34 @@ pub async fn complete_chat(
     user: &str,
     max_tokens: u32,
 ) -> AppResult<String> {
+    log::info!(
+        "ai: completion start provider={} model={} max_tokens={} system_chars={} user_chars={}",
+        cfg.provider.label(),
+        cfg.model,
+        max_tokens,
+        system.chars().count(),
+        user.chars().count()
+    );
     // A sink that discards deltas; `consume_sse` still accumulates the full text.
     let mut discard = |_: &str| true;
-    let outcome = if cfg.provider.is_openai_compatible() {
+    let result = if cfg.provider.is_openai_compatible() {
         stream_openai(client, cfg, system, user, &mut discard, max_tokens).await
     } else {
         stream_anthropic(client, cfg, system, user, &mut discard, max_tokens).await
-    }?;
+    };
+    match &result {
+        Ok(outcome) => log::info!(
+            "ai: completion finished provider={} completed={} output_chars={}",
+            cfg.provider.label(),
+            outcome.completed,
+            outcome.text.chars().count()
+        ),
+        Err(e) => log::warn!(
+            "ai: completion failed provider={}: {e}",
+            cfg.provider.label()
+        ),
+    }
+    let outcome = result?;
     Ok(outcome.text)
 }
 
@@ -225,6 +280,11 @@ async fn stream_anthropic(
     sink: &mut DeltaSink<'_>,
     max_tokens: u32,
 ) -> AppResult<ChatOutcome> {
+    let url = format!("{}/messages", cfg.base_url);
+    log::info!(
+        "ai: sending request provider={} url={url}",
+        cfg.provider.label()
+    );
     let body = json!({
         "model": cfg.model,
         "max_tokens": max_tokens,
@@ -233,7 +293,7 @@ async fn stream_anthropic(
         "messages": [{ "role": "user", "content": user }],
     });
     let resp = client
-        .post(format!("{}/messages", cfg.base_url))
+        .post(url)
         .header("x-api-key", &cfg.api_key)
         .header("anthropic-version", "2023-06-01")
         .header("content-type", "application/json")
@@ -241,6 +301,11 @@ async fn stream_anthropic(
         .json(&body)
         .send()
         .await?;
+    log::info!(
+        "ai: response received provider={} status={}",
+        cfg.provider.label(),
+        resp.status()
+    );
     consume_sse(resp, sink, Provider::Anthropic).await
 }
 
@@ -252,6 +317,11 @@ async fn stream_openai(
     sink: &mut DeltaSink<'_>,
     max_tokens: u32,
 ) -> AppResult<ChatOutcome> {
+    let url = format!("{}/chat/completions", cfg.base_url);
+    log::info!(
+        "ai: sending request provider={} url={url}",
+        cfg.provider.label()
+    );
     let body = json!({
         "model": cfg.model,
         "max_tokens": max_tokens,
@@ -262,12 +332,17 @@ async fn stream_openai(
         ],
     });
     let resp = client
-        .post(format!("{}/chat/completions", cfg.base_url))
+        .post(url)
         .bearer_auth(&cfg.api_key)
         .timeout(AI_REQUEST_TIMEOUT)
         .json(&body)
         .send()
         .await?;
+    log::info!(
+        "ai: response received provider={} status={}",
+        cfg.provider.label(),
+        resp.status()
+    );
     consume_sse(resp, sink, Provider::OpenAi).await
 }
 
@@ -326,6 +401,7 @@ async fn consume_sse(
     provider: Provider,
 ) -> AppResult<ChatOutcome> {
     let mut resp = ensure_success(resp, "AI API").await?;
+    log::info!("ai: sse consume start provider={}", provider.label());
 
     let mut buf: Vec<u8> = Vec::new();
     let mut full = String::new();
@@ -346,7 +422,15 @@ async fn consume_sse(
             match handle_sse_line(&line, provider, &mut full, &mut *sink)? {
                 LineOutcome::Continue => {}
                 LineOutcome::ChannelClosed => {
-                    return Ok(ChatOutcome { text: full, completed: false });
+                    log::info!(
+                        "ai: sse consume stopped provider={} output_chars={}",
+                        provider.label(),
+                        full.chars().count()
+                    );
+                    return Ok(ChatOutcome {
+                        text: full,
+                        completed: false,
+                    });
                 }
             }
         }
@@ -362,11 +446,27 @@ async fn consume_sse(
         match handle_sse_line(&line, provider, &mut full, &mut *sink)? {
             LineOutcome::Continue => {}
             LineOutcome::ChannelClosed => {
-                return Ok(ChatOutcome { text: full, completed: false });
+                log::info!(
+                    "ai: sse consume stopped provider={} output_chars={}",
+                    provider.label(),
+                    full.chars().count()
+                );
+                return Ok(ChatOutcome {
+                    text: full,
+                    completed: false,
+                });
             }
         }
     }
-    Ok(ChatOutcome { text: full, completed: true })
+    log::info!(
+        "ai: sse consume finished provider={} output_chars={}",
+        provider.label(),
+        full.chars().count()
+    );
+    Ok(ChatOutcome {
+        text: full,
+        completed: true,
+    })
 }
 
 /// Detect a provider error object carried inside an SSE data frame.
@@ -493,8 +593,13 @@ mod tests {
         let mut got = Vec::new();
         let mut full = String::new();
         let line = "data: {\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n";
-        let out = handle_sse_line(line, Provider::OpenAi, &mut full, &mut recording_sink(&mut got))
-            .unwrap();
+        let out = handle_sse_line(
+            line,
+            Provider::OpenAi,
+            &mut full,
+            &mut recording_sink(&mut got),
+        )
+        .unwrap();
         assert!(matches!(out, LineOutcome::Continue));
         assert_eq!(full, "hi");
         assert_eq!(got, vec!["hi"]);
@@ -505,8 +610,13 @@ mod tests {
         let mut got = Vec::new();
         let mut full = String::new();
         for line in [": keep-alive comment\n", "data: [DONE]\n", "\n"] {
-            handle_sse_line(line, Provider::OpenAi, &mut full, &mut recording_sink(&mut got))
-                .unwrap();
+            handle_sse_line(
+                line,
+                Provider::OpenAi,
+                &mut full,
+                &mut recording_sink(&mut got),
+            )
+            .unwrap();
         }
         assert!(full.is_empty());
         assert!(got.is_empty());
@@ -516,8 +626,8 @@ mod tests {
     fn sse_line_surfaces_a_mid_stream_error() {
         let mut full = String::new();
         let line = "data: {\"error\":{\"message\":\"rate limited\"}}\n";
-        let err = handle_sse_line(line, Provider::OpenAi, &mut full, &mut |_: &str| true)
-            .unwrap_err();
+        let err =
+            handle_sse_line(line, Provider::OpenAi, &mut full, &mut |_: &str| true).unwrap_err();
         assert!(err.to_string().contains("rate limited"));
     }
 
@@ -539,7 +649,13 @@ mod tests {
         let mut got = Vec::new();
         let mut full = String::new();
         let last = "data: {\"choices\":[{\"delta\":{\"content\":\"!\"}}]}";
-        handle_sse_line(last, Provider::OpenAi, &mut full, &mut recording_sink(&mut got)).unwrap();
+        handle_sse_line(
+            last,
+            Provider::OpenAi,
+            &mut full,
+            &mut recording_sink(&mut got),
+        )
+        .unwrap();
         assert_eq!(full, "!");
         assert_eq!(got, vec!["!"]);
     }
@@ -590,8 +706,8 @@ mod tests {
         // DeepSeek has no model or base URL set, so it must fall back to its
         // own defaults — not OpenAI's — while still speaking the OpenAI wire
         // format (it is OpenAI-compatible).
-        let cfg = AiConfig::new(Some("deepseek".into()), Some("sk-key".into()), None, None)
-            .unwrap();
+        let cfg =
+            AiConfig::new(Some("deepseek".into()), Some("sk-key".into()), None, None).unwrap();
         assert_eq!(cfg.model, "deepseek-chat");
         assert_eq!(cfg.base_url, "https://api.deepseek.com");
         assert!(cfg.provider.is_openai_compatible());

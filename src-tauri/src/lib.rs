@@ -20,14 +20,51 @@ mod tray;
 
 use ingestion::discovery::{self, DeepLink};
 use log::{LevelFilter, Metadata, Record};
+use serde::Serialize;
 use state::AppState;
+use std::collections::VecDeque;
 use std::fs;
-use std::sync::Once;
+use std::io::Write;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, Once, OnceLock};
 use tauri::{Emitter, Manager};
+use tauri_plugin_opener::OpenerExt;
+
+const DEBUG_LOG_LIMIT: usize = 1000;
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DebugLogEntry {
+    id: u64,
+    ts: String,
+    level: String,
+    target: String,
+    message: String,
+}
 
 struct StderrLogger;
 static LOGGER: StderrLogger = StderrLogger;
 static LOGGER_INIT: Once = Once::new();
+static LOG_HANDLE: OnceLock<tauri::AppHandle> = OnceLock::new();
+static LOG_DIR: OnceLock<PathBuf> = OnceLock::new();
+static LOG_BUFFER: OnceLock<Mutex<VecDeque<DebugLogEntry>>> = OnceLock::new();
+static LOG_FILE_LOCK: Mutex<()> = Mutex::new(());
+static LOG_ID: AtomicU64 = AtomicU64::new(1);
+
+fn log_buffer() -> &'static Mutex<VecDeque<DebugLogEntry>> {
+    LOG_BUFFER.get_or_init(|| Mutex::new(VecDeque::with_capacity(DEBUG_LOG_LIMIT)))
+}
+
+fn write_log_file(line: &str) {
+    let Some(dir) = LOG_DIR.get() else { return };
+    let _guard = LOG_FILE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _ = fs::create_dir_all(dir);
+    let path = dir.join(format!("{}.log", chrono::Local::now().format("%Y-%m-%d")));
+    if let Ok(mut file) = fs::OpenOptions::new().create(true).append(true).open(path) {
+        let _ = writeln!(file, "{line}");
+    }
+}
 
 impl log::Log for StderrLogger {
     fn enabled(&self, metadata: &Metadata<'_>) -> bool {
@@ -36,7 +73,27 @@ impl log::Log for StderrLogger {
 
     fn log(&self, record: &Record<'_>) {
         if self.enabled(record.metadata()) {
-            eprintln!("[{}] {}", record.level(), record.args());
+            let ts = chrono::Local::now().format("%H:%M:%S%.3f").to_string();
+            let line = format!("[{} {}] {}", ts, record.level(), record.args());
+            eprintln!("{line}");
+            write_log_file(&line);
+            let entry = DebugLogEntry {
+                id: LOG_ID.fetch_add(1, Ordering::Relaxed),
+                ts,
+                level: record.level().to_string(),
+                target: record.target().to_string(),
+                message: record.args().to_string(),
+            };
+            {
+                let mut logs = log_buffer().lock().unwrap_or_else(|e| e.into_inner());
+                if logs.len() == DEBUG_LOG_LIMIT {
+                    logs.pop_front();
+                }
+                logs.push_back(entry.clone());
+            }
+            if let Some(app) = LOG_HANDLE.get() {
+                let _ = app.emit("debug-log", entry);
+            }
         }
     }
 
@@ -54,6 +111,33 @@ fn init_logger() {
         };
         let _ = log::set_logger(&LOGGER).map(|()| log::set_max_level(level));
     });
+}
+
+fn attach_log_handle(app: tauri::AppHandle) {
+    if let Ok(dir) = app.path().app_log_dir() {
+        let _ = fs::create_dir_all(&dir);
+        let _ = LOG_DIR.set(dir);
+    }
+    let _ = LOG_HANDLE.set(app);
+}
+
+#[tauri::command]
+fn debug_logs() -> Vec<DebugLogEntry> {
+    log_buffer()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .iter()
+        .cloned()
+        .collect()
+}
+
+#[tauri::command]
+fn open_log_dir(app: tauri::AppHandle) -> Result<(), String> {
+    let dir = app.path().app_log_dir().map_err(|e| e.to_string())?;
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    app.opener()
+        .open_path(dir.to_string_lossy().to_string(), None::<String>)
+        .map_err(|e| e.to_string())
 }
 
 /// Handle every URL delivered through the `papr://` deep-link scheme. A
@@ -113,6 +197,7 @@ pub fn run() {
 
     builder
         .setup(|app| {
+            attach_log_handle(app.handle().clone());
             // ── Database ──────────────────────────────────────────────
             let data_dir = app.path().app_data_dir().expect("resolve app data dir");
             fs::create_dir_all(&data_dir).ok();
@@ -329,6 +414,8 @@ pub fn run() {
             page_view::set_page_view_bounds,
             page_view::set_page_view_visible,
             page_view::close_page_view,
+            debug_logs,
+            open_log_dir,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Papr");

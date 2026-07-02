@@ -1275,6 +1275,7 @@ function ShortcutsSection() {
       items: [
         { desc: t("settings.shortcuts.commandPalette"), keys: [modKey, "K"] },
         { desc: t("settings.shortcuts.refreshAll"), keys: [modKey, "R"] },
+        { desc: t("settings.shortcuts.debugLogs"), keys: [modKey, "⇧", "L"] },
         { desc: t("settings.shortcuts.addFeed"), keys: ["A"] },
         { desc: t("settings.shortcuts.openSettings"), keys: [modKey, ","] },
       ],
@@ -1415,6 +1416,11 @@ function StorageGroup({ onToast }: { onToast: (m: string) => void }) {
       setBusy(false);
     }
   };
+  const openLogs = () => {
+    api.openLogDir()
+      .then(() => onToast(t("settings.advanced.logDirOpened")))
+      .catch(reportError);
+  };
 
   const s = stats.data;
   return (
@@ -1465,6 +1471,14 @@ function StorageGroup({ onToast }: { onToast: (m: string) => void }) {
       >
         <button className="s-btn" onClick={vacuum} disabled={busy}>
           {t("settings.advanced.compress")}
+        </button>
+      </Row>
+      <Row
+        label={t("settings.advanced.logs")}
+        desc={t("settings.advanced.logsDesc")}
+      >
+        <button className="s-btn" onClick={openLogs}>
+          {t("settings.advanced.openLogs")}
         </button>
       </Row>
     </div>

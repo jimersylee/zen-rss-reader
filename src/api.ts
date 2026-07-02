@@ -7,6 +7,7 @@ import type {
   ArticleDetail,
   ArticleQuery,
   ArticleSummary,
+  DebugLogEntry,
   DiscoveryResult,
   Feed,
   Folder,
@@ -199,6 +200,8 @@ export const cleanupArticles = (days: number) =>
 export const vacuumDb = () => invoke<void>("vacuum_db");
 export const resetSettings = () => invoke<void>("reset_settings");
 export const clearAllData = () => invoke<void>("clear_all_data");
+export const debugLogs = () => invoke<DebugLogEntry[]>("debug_logs");
+export const openLogDir = () => invoke<void>("open_log_dir");
 
 // ── network ──
 export const applyNetworkSettings = () =>
