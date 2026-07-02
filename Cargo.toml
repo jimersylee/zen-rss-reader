@@ -43,3 +43,11 @@ codegen-units = 1
 lto = true
 opt-level = "s"
 strip = true
+
+[profile.release-fast]
+inherits = "release"
+codegen-units = 16
+incremental = true
+lto = false
+opt-level = 1
+strip = false

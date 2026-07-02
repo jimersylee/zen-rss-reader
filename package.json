@@ -10,6 +10,7 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"extension/**/*.{js,html,json,md}\" \"*.{html,ts,json}\" && cargo fmt --all -- --check",
     "preview": "vite preview",
     "tauri": "tauri",
+    "build-local-app": "tauri build --bundles dmg --config src-tauri/tauri.local.conf.json -- --profile release-fast",
     "test": "vitest run"
   },
   "dependencies": {
