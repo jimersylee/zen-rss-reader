@@ -236,8 +236,7 @@ pub fn run() {
                 use tauri_plugin_deep_link::DeepLinkExt;
                 let handle = app.handle().clone();
                 app.deep_link().on_open_url(move |event| {
-                    let urls: Vec<String> =
-                        event.urls().iter().map(|u| u.to_string()).collect();
+                    let urls: Vec<String> = event.urls().iter().map(|u| u.to_string()).collect();
                     handle_deep_links(&handle, &urls);
                 });
                 // On Linux/Windows dev builds, register the scheme at runtime
@@ -295,8 +294,7 @@ pub fn run() {
                         Some("black") => (0x15, 0x10, 0x0F),
                         _ => (0x25, 0x20, 0x1F),
                     };
-                    let _ = win
-                        .set_background_color(Some(tauri::window::Color(r, g, b, 0xFF)));
+                    let _ = win.set_background_color(Some(tauri::window::Color(r, g, b, 0xFF)));
                 }
             }
 

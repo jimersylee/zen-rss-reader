@@ -34,7 +34,16 @@ pub fn sanitize(html: &str, base: Option<&str>) -> String {
         .add_tags(["video", "source"])
         .add_tag_attributes(
             "video",
-            ["src", "poster", "width", "height", "preload", "loop", "muted", "playsinline"],
+            [
+                "src",
+                "poster",
+                "width",
+                "height",
+                "preload",
+                "loop",
+                "muted",
+                "playsinline",
+            ],
         )
         .add_tag_attributes("source", ["src", "type", "media"])
         // Always expose player controls: a feed clip with no `controls` (and no
@@ -313,9 +322,18 @@ mod tests {
         );
         assert!(out.contains("<video"), "video tag dropped: {out}");
         assert!(out.contains("<source"), "source tag dropped: {out}");
-        assert!(out.contains(r#"src="https://ex.com/v.mp4""#), "source src dropped: {out}");
-        assert!(out.contains(r#"type="video/mp4""#), "source type dropped: {out}");
-        assert!(out.contains(r#"poster="https://ex.com/p.jpg""#), "poster dropped: {out}");
+        assert!(
+            out.contains(r#"src="https://ex.com/v.mp4""#),
+            "source src dropped: {out}"
+        );
+        assert!(
+            out.contains(r#"type="video/mp4""#),
+            "source type dropped: {out}"
+        );
+        assert!(
+            out.contains(r#"poster="https://ex.com/p.jpg""#),
+            "poster dropped: {out}"
+        );
     }
 
     #[test]
@@ -353,7 +371,10 @@ mod tests {
     #[test]
     fn sanitize_drops_javascript_video_src() {
         let out = sanitize(r#"<video src="javascript:evil()"></video>"#, None);
-        assert!(!out.contains("javascript:"), "javascript: src survived: {out}");
+        assert!(
+            !out.contains("javascript:"),
+            "javascript: src survived: {out}"
+        );
     }
 
     // --- first_image: card-thumbnail fallback from body HTML. ---

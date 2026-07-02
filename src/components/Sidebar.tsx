@@ -26,8 +26,7 @@ interface Props {
   onToast: (msg: string) => void;
 }
 
-const sameQuery = (a: ArticleQuery, b: ArticleQuery) =>
-  JSON.stringify(a) === JSON.stringify(b);
+const sameQuery = (a: ArticleQuery, b: ArticleQuery) => JSON.stringify(a) === JSON.stringify(b);
 
 /** Enter / Space activator for a div that behaves as a button — gives the
  *  sidebar's clickable rows keyboard parity with their onClick. */
@@ -148,13 +147,11 @@ export default function Sidebar({
     kind: "feed" | "folder" | "tag",
     id: number,
   ) => {
-    const cacheKey =
-      kind === "feed" ? "feeds" : kind === "folder" ? "folders" : "tags";
+    const cacheKey = kind === "feed" ? "feeds" : kind === "folder" ? "folders" : "tags";
     // Snapshots taken before the optimistic edit, restored verbatim on undo
     // (or if the eventual delete fails).
     const prevList = qc.getQueryData<{ id: number }[]>([cacheKey]);
-    const prevFeeds =
-      kind === "folder" ? qc.getQueryData<Feed[]>(["feeds"]) : undefined;
+    const prevFeeds = kind === "folder" ? qc.getQueryData<Feed[]>(["feeds"]) : undefined;
     const restore = () => {
       if (prevList) qc.setQueryData([cacheKey], prevList);
       if (prevFeeds) qc.setQueryData(["feeds"], prevFeeds);
@@ -163,27 +160,20 @@ export default function Sidebar({
     withUndo({
       text: toastText,
       apply: () => {
-        qc.setQueryData<{ id: number }[]>([cacheKey], (old) =>
-          old?.filter((x) => x.id !== id),
-        );
+        qc.setQueryData<{ id: number }[]>([cacheKey], (old) => old?.filter((x) => x.id !== id));
         // Deleting a folder orphans its feeds to "uncategorized" (the DB FK
         // is ON DELETE SET NULL) — mirror that so they don't briefly vanish
         // from the tree during the undo window.
         if (kind === "folder") {
           qc.setQueryData<Feed[]>(["feeds"], (old) =>
-            old?.map((f) =>
-              f.folderId === id ? { ...f, folderId: null } : f,
-            ),
+            old?.map((f) => (f.folderId === id ? { ...f, folderId: null } : f)),
           );
         }
         const st = useUi.getState();
         if (st.query.kind === kind && st.query.value === id) {
           st.select({ kind: "all" }, t("smart.all"));
         } else if (kind === "feed" && st.selectedArticleId != null) {
-          const open = qc.getQueryData<{ feedId: number }>([
-            "article",
-            st.selectedArticleId,
-          ]);
+          const open = qc.getQueryData<{ feedId: number }>(["article", st.selectedArticleId]);
           if (open?.feedId === id) st.openArticle(null);
         }
       },
@@ -236,10 +226,7 @@ export default function Sidebar({
   // from under the user the moment its last article is marked read, and the
   // filter is suspended mid-drag so a drag target never disappears.
   const feedVisible = (f: Feed) =>
-    !unreadOnly ||
-    dragId != null ||
-    f.unreadCount > 0 ||
-    isActive({ kind: "feed", value: f.id });
+    !unreadOnly || dragId != null || f.unreadCount > 0 || isActive({ kind: "feed", value: f.id });
   const visibleFeeds = allFeeds.filter(feedVisible);
   const ungrouped = visibleFeeds.filter((f) => f.folderId == null);
 
@@ -252,7 +239,7 @@ export default function Sidebar({
     const folderName =
       target == null
         ? t("sidebar.uncategorized")
-        : allFolders.find((f) => f.id === target)?.name ?? "";
+        : (allFolders.find((f) => f.id === target)?.name ?? "");
     guard(
       api.moveFeed(feed.id, target),
       t("sidebar.toastMoved", { feed: feed.title, folder: folderName }),
@@ -267,27 +254,20 @@ export default function Sidebar({
         icon: "folder" as const,
         label: t("sidebar.moveToFolder", { folder: fo.name }),
         onClick: () =>
-          guard(
-            api.moveFeed(f.id, fo.id),
-            t("sidebar.toastMovedTo", { folder: fo.name }),
-          ),
+          guard(api.moveFeed(f.id, fo.id), t("sidebar.toastMovedTo", { folder: fo.name })),
       }));
     if (f.folderId != null)
       moves.push({
         icon: "folder",
         label: t("sidebar.moveOutOfFolder"),
-        onClick: () =>
-          guard(api.moveFeed(f.id, null), t("sidebar.toastMovedOut")),
+        onClick: () => guard(api.moveFeed(f.id, null), t("sidebar.toastMovedOut")),
       });
     return [
       {
         icon: "check-all",
         label: t("sidebar.markAllRead"),
         onClick: () =>
-          guard(
-            api.markAllRead({ kind: "feed", value: f.id }),
-            t("sidebar.toastMarkedAllRead"),
-          ),
+          guard(api.markAllRead({ kind: "feed", value: f.id }), t("sidebar.toastMarkedAllRead")),
       },
       {
         icon: "refresh",
@@ -303,8 +283,7 @@ export default function Sidebar({
             title: t("sidebar.renameFeedTitle"),
             initial: f.title,
             placeholder: t("sidebar.feedNamePlaceholder"),
-            onSubmit: (v) =>
-              guard(api.renameFeed(f.id, v), t("sidebar.toastRenamed")),
+            onSubmit: (v) => guard(api.renameFeed(f.id, v), t("sidebar.toastRenamed")),
           }),
       },
       {
@@ -315,8 +294,7 @@ export default function Sidebar({
             title: t("sidebar.editFeedUrlTitle"),
             initial: f.feedUrl,
             placeholder: t("sidebar.feedUrlPlaceholder"),
-            onSubmit: (v) =>
-              guard(api.updateFeedUrl(f.id, v), t("sidebar.toastUrlUpdated")),
+            onSubmit: (v) => guard(api.updateFeedUrl(f.id, v), t("sidebar.toastUrlUpdated")),
           }),
       },
       ...(moves.length ? [{ separator: true } as MenuEntry, ...moves] : []),
@@ -360,8 +338,7 @@ export default function Sidebar({
           title: t("sidebar.renameFolderTitle"),
           initial: folder.name,
           placeholder: t("sidebar.folderNamePlaceholder"),
-          onSubmit: (v) =>
-            guard(api.renameFolder(folder.id, v), t("sidebar.toastRenamed")),
+          onSubmit: (v) => guard(api.renameFolder(folder.id, v), t("sidebar.toastRenamed")),
         }),
     },
     { separator: true },
@@ -382,65 +359,59 @@ export default function Sidebar({
   const tagMenu = (tag: Tag): MenuEntry[] => {
     const idx = allTags.findIndex((tg) => tg.id === tag.id);
     return [
-    // Drag-reorder isn't reachable by keyboard — these give it parity.
-    ...(idx > 0
-      ? ([
-          {
-            icon: "arrow-up",
-            label: t("sidebar.moveTagUp"),
-            onClick: () => moveTag(tag.id, -1),
-          },
-        ] as MenuEntry[])
-      : []),
-    ...(idx >= 0 && idx < allTags.length - 1
-      ? ([
-          {
-            icon: "arrow-down",
-            label: t("sidebar.moveTagDown"),
-            onClick: () => moveTag(tag.id, 1),
-          },
-        ] as MenuEntry[])
-      : []),
-    ...(allTags.length > 1 ? [{ separator: true } as MenuEntry] : []),
-    {
-      icon: "settings",
-      label: t("sidebar.renameMenu"),
-      onClick: () =>
-        setPrompt({
-          title: t("sidebar.renameTagTitle"),
-          initial: tag.name,
-          placeholder: t("sidebar.tagNamePlaceholder"),
-          onSubmit: (v) =>
-            guard(api.renameTag(tag.id, v), t("sidebar.toastRenamed")),
-        }),
-    },
-    {
-      swatches: Object.entries(TAG_PALETTE).map(([value, color]) => ({
-        value,
-        color,
-      })),
-      current: tag.color,
-      // The recolour is instantly visible on the dot, so no toast — just
-      // refresh the caches that embed the tag colour.
-      onPick: (color) =>
-        api
-          .setTagColor(tag.id, color)
-          .then(() => actions.refreshAfterBulk())
-          .catch((e) => reportError(e)),
-    },
-    { separator: true },
-    {
-      icon: "trash",
-      label: t("sidebar.deleteTag"),
-      danger: true,
-      onClick: () =>
-        guardDelete(
-          () => api.deleteTag(tag.id),
-          t("sidebar.toastTagDeleted"),
-          "tag",
-          tag.id,
-        ),
-    },
+      // Drag-reorder isn't reachable by keyboard — these give it parity.
+      ...(idx > 0
+        ? ([
+            {
+              icon: "arrow-up",
+              label: t("sidebar.moveTagUp"),
+              onClick: () => moveTag(tag.id, -1),
+            },
+          ] as MenuEntry[])
+        : []),
+      ...(idx >= 0 && idx < allTags.length - 1
+        ? ([
+            {
+              icon: "arrow-down",
+              label: t("sidebar.moveTagDown"),
+              onClick: () => moveTag(tag.id, 1),
+            },
+          ] as MenuEntry[])
+        : []),
+      ...(allTags.length > 1 ? [{ separator: true } as MenuEntry] : []),
+      {
+        icon: "settings",
+        label: t("sidebar.renameMenu"),
+        onClick: () =>
+          setPrompt({
+            title: t("sidebar.renameTagTitle"),
+            initial: tag.name,
+            placeholder: t("sidebar.tagNamePlaceholder"),
+            onSubmit: (v) => guard(api.renameTag(tag.id, v), t("sidebar.toastRenamed")),
+          }),
+      },
+      {
+        swatches: Object.entries(TAG_PALETTE).map(([value, color]) => ({
+          value,
+          color,
+        })),
+        current: tag.color,
+        // The recolour is instantly visible on the dot, so no toast — just
+        // refresh the caches that embed the tag colour.
+        onPick: (color) =>
+          api
+            .setTagColor(tag.id, color)
+            .then(() => actions.refreshAfterBulk())
+            .catch((e) => reportError(e)),
+      },
+      { separator: true },
+      {
+        icon: "trash",
+        label: t("sidebar.deleteTag"),
+        danger: true,
+        onClick: () =>
+          guardDelete(() => api.deleteTag(tag.id), t("sidebar.toastTagDeleted"), "tag", tag.id),
+      },
     ];
   };
 
@@ -540,9 +511,7 @@ export default function Sidebar({
           !
         </span>
       )}
-      {showCounts && f.unreadCount > 0 && (
-        <span className="sb-count">{f.unreadCount}</span>
-      )}
+      {showCounts && f.unreadCount > 0 && <span className="sb-count">{f.unreadCount}</span>}
     </div>
   );
 
@@ -661,8 +630,7 @@ export default function Sidebar({
             is in progress: without the latter, a drag-to-ungroup would have
             no target to land on once every feed lives inside a folder. */}
         {(ungrouped.length > 0 ||
-          (dragId != null &&
-            allFeeds.find((f) => f.id === dragId)?.folderId != null)) && (
+          (dragId != null && allFeeds.find((f) => f.id === dragId)?.folderId != null)) && (
           <div
             onDragOver={(e) => {
               if (dragId != null) {
@@ -689,8 +657,7 @@ export default function Sidebar({
           const inFolder = visibleFeeds.filter((f) => f.folderId === folder.id);
           // In "unread only" mode an empty folder is hidden — unless a drag is
           // active, when it must stay as a drop target.
-          if (unreadOnly && dragId == null && inFolder.length === 0)
-            return null;
+          if (unreadOnly && dragId == null && inFolder.length === 0) return null;
           const isCollapsed = collapsed[folder.id];
           const folderActive = isActive({ kind: "folder", value: folder.id });
           // Aggregate unread for the folder. Shown while collapsed or when the
@@ -735,9 +702,7 @@ export default function Sidebar({
                 <button
                   type="button"
                   className="sb-folder-toggle"
-                  aria-label={t(
-                    isCollapsed ? "sidebar.expandFolder" : "sidebar.collapseFolder",
-                  )}
+                  aria-label={t(isCollapsed ? "sidebar.expandFolder" : "sidebar.collapseFolder")}
                   aria-expanded={!isCollapsed}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -803,19 +768,14 @@ export default function Sidebar({
             }}
             onDrop={() => dropTag(tag.id)}
             onClick={() => select({ kind: "tag", value: tag.id }, tag.name)}
-            onKeyDown={onActivate(() =>
-              select({ kind: "tag", value: tag.id }, tag.name),
-            )}
+            onKeyDown={onActivate(() => select({ kind: "tag", value: tag.id }, tag.name))}
             onContextMenu={(e) => {
               e.preventDefault();
               setMenu({ x: e.clientX, y: e.clientY, kind: "tag", tag });
             }}
           >
             <span className="sb-ico">
-              <span
-                className="tag-dot"
-                style={{ background: tagColor(tag.color) }}
-              />
+              <span className="tag-dot" style={{ background: tagColor(tag.color) }} />
             </span>
             <span className="sb-label">{tag.name}</span>
             {showCounts && tag.articleCount > 0 && (
@@ -844,11 +804,7 @@ export default function Sidebar({
         >
           <Icon name="refresh" size={14} />
         </button>
-        <button
-          title={t("sidebar.explore")}
-          aria-label={t("sidebar.explore")}
-          onClick={onExplore}
-        >
+        <button title={t("sidebar.explore")} aria-label={t("sidebar.explore")} onClick={onExplore}>
           <Icon name="globe" size={14} />
         </button>
         <div className="spacer" />

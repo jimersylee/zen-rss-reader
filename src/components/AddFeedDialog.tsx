@@ -167,12 +167,10 @@ export default function AddFeedDialog({ onClose, onToast, initialUrl }: Props) {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [onClose]);
 
-  const newsletterReady =
-    nlHost.trim() !== "" && nlUser.trim() !== "" && nlPass !== "";
+  const newsletterReady = nlHost.trim() !== "" && nlUser.trim() !== "" && nlPass !== "";
 
   const showDiscovery = tab === "feed" && debounced.length >= 2;
-  const hasResults =
-    grouped.scraped.length > 0 || grouped.byCategory.size > 0;
+  const hasResults = grouped.scraped.length > 0 || grouped.byCategory.size > 0;
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -228,26 +226,18 @@ export default function AddFeedDialog({ onClose, onToast, initialUrl }: Props) {
             {showDiscovery && (
               <div className="discover-results" role="listbox">
                 {discovery.isLoading && (
-                  <div className="discover-empty">
-                    {t("addFeed.discoverSearching")}
-                  </div>
+                  <div className="discover-empty">{t("addFeed.discoverSearching")}</div>
                 )}
                 {/* A failed search must not masquerade as "no feeds found". */}
                 {!discovery.isLoading && discovery.isError && (
-                  <div className="discover-empty">
-                    {t("addFeed.discoverError")}
-                  </div>
+                  <div className="discover-empty">{t("addFeed.discoverError")}</div>
                 )}
                 {!discovery.isLoading && !discovery.isError && !hasResults && (
-                  <div className="discover-empty">
-                    {t("addFeed.discoverNoResults")}
-                  </div>
+                  <div className="discover-empty">{t("addFeed.discoverNoResults")}</div>
                 )}
                 {grouped.scraped.length > 0 && (
                   <div className="discover-group">
-                    <div className="discover-group-label">
-                      {t("addFeed.discoverFromPage")}
-                    </div>
+                    <div className="discover-group-label">{t("addFeed.discoverFromPage")}</div>
                     {grouped.scraped.map((r) => (
                       <DiscoverRow
                         key={r.feedUrl}
@@ -282,9 +272,7 @@ export default function AddFeedDialog({ onClose, onToast, initialUrl }: Props) {
                 style={{ width: "100%" }}
                 aria-label={t("addFeed.folderLabel")}
                 value={folderId ?? ""}
-                onChange={(e) =>
-                  setFolderId(e.target.value ? Number(e.target.value) : null)
-                }
+                onChange={(e) => setFolderId(e.target.value ? Number(e.target.value) : null)}
               >
                 <option value="">{t("addFeed.noFolder")}</option>
                 {folders.data!.map((f) => (
@@ -294,9 +282,7 @@ export default function AddFeedDialog({ onClose, onToast, initialUrl }: Props) {
                 ))}
               </select>
             )}
-            {add.isError && (
-              <div className="modal-error">{errorText(add.error)}</div>
-            )}
+            {add.isError && <div className="modal-error">{errorText(add.error)}</div>}
           </>
         ) : (
           <>
@@ -367,9 +353,7 @@ export default function AddFeedDialog({ onClose, onToast, initialUrl }: Props) {
               onKeyDown={nlKeyDown}
             />
             {addNewsletter.isError && (
-              <div className="modal-error">
-                {errorText(addNewsletter.error)}
-              </div>
+              <div className="modal-error">{errorText(addNewsletter.error)}</div>
             )}
           </>
         )}
@@ -394,9 +378,7 @@ export default function AddFeedDialog({ onClose, onToast, initialUrl }: Props) {
               disabled={!newsletterReady || addNewsletter.isPending}
             >
               <Icon name="plus" size={12} />
-              {addNewsletter.isPending
-                ? t("addFeed.connecting")
-                : t("addFeed.connect")}
+              {addNewsletter.isPending ? t("addFeed.connecting") : t("addFeed.connect")}
             </button>
           )}
         </div>
@@ -421,9 +403,7 @@ function DiscoverRow({
     <div className="discover-row" role="option" aria-selected={false}>
       <div className="discover-text">
         <span className="discover-title">{result.title}</span>
-        {result.description && (
-          <span className="discover-desc">{result.description}</span>
-        )}
+        {result.description && <span className="discover-desc">{result.description}</span>}
         {!result.description && (
           <span className="discover-desc discover-url">{result.feedUrl}</span>
         )}

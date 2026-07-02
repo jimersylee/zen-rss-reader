@@ -68,10 +68,7 @@ export default function ConfirmDialog({
           <button className="s-btn" onClick={onClose} autoFocus>
             {t("common.cancel")}
           </button>
-          <button
-            className={`s-btn primary${danger ? " danger" : ""}`}
-            onClick={confirm}
-          >
+          <button className={`s-btn primary${danger ? " danger" : ""}`} onClick={confirm}>
             {confirmLabel}
           </button>
         </div>

@@ -1,13 +1,7 @@
 // Type mirrors of the Rust domain model (see src-tauri/src/models.rs).
 
 export type SourceType =
-  | "rss"
-  | "youtube"
-  | "podcast"
-  | "mastodon"
-  | "bluesky"
-  | "reddit"
-  | "newsletter";
+  "rss" | "youtube" | "podcast" | "mastodon" | "bluesky" | "reddit" | "newsletter";
 
 /** A configured email-newsletter source (mirrors commands::NewsletterSource). */
 export interface NewsletterSource {
@@ -170,9 +164,7 @@ export type ArticleQuery =
   | { kind: "tag"; value: number };
 
 export type AiEvent =
-  | { type: "delta"; data: string }
-  | { type: "done" }
-  | { type: "error"; data: string };
+  { type: "delta"; data: string } | { type: "done" } | { type: "error"; data: string };
 
 /** Batch-level translation progress (mirrors commands::TranslateEvent). */
 export type TranslateEvent =

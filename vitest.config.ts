@@ -6,10 +6,7 @@ import { defineConfig } from "vitest/config";
 // React component files are deliberately excluded; they would need a DOM.
 export default defineConfig({
   test: {
-    include: [
-      "extension/test/**/*.test.{js,ts}",
-      "src/lib/**/*.test.ts",
-    ],
+    include: ["extension/test/**/*.test.{js,ts}", "src/lib/**/*.test.ts"],
     environment: "node",
   },
 });

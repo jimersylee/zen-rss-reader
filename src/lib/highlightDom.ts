@@ -58,12 +58,7 @@ export function plainText(root: HTMLElement): string {
  * elements. A range crossing several text nodes is split into one <mark> per
  * node so block structure is preserved. Returns the created marks.
  */
-function wrapRange(
-  spans: TextSpan[],
-  start: number,
-  end: number,
-  hl: Highlight,
-): HTMLElement[] {
+function wrapRange(spans: TextSpan[], start: number, end: number, hl: Highlight): HTMLElement[] {
   const marks: HTMLElement[] = [];
   for (const span of spans) {
     const nodeEnd = span.start + span.node.data.length;
@@ -140,12 +135,7 @@ export function clearHighlights(root: HTMLElement): void {
  * tail of the text — so a range that brackets a <mark> still yields a sane,
  * mark-free slice.
  */
-function pointToOffset(
-  spans: TextSpan[],
-  container: Node,
-  offset: number,
-  atEnd: boolean,
-): number {
+function pointToOffset(spans: TextSpan[], container: Node, offset: number, atEnd: boolean): number {
   for (const span of spans) {
     if (span.node === container) {
       // Common case: the point sits inside this collected text node.
@@ -175,9 +165,7 @@ function pointToOffset(
  * would store a quote that is not a substring of the anchoring basis and could
  * never be re-anchored on reopen.
  */
-export function selectionAnchor(
-  root: HTMLElement,
-): { quote: string; textOffset: number } | null {
+export function selectionAnchor(root: HTMLElement): { quote: string; textOffset: number } | null {
   const sel = window.getSelection();
   if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
   const range = sel.getRangeAt(0);

@@ -40,10 +40,7 @@ describe("detectDeclaredFeeds", () => {
       ],
       "https://x.com",
     );
-    expect(feeds.map((f) => f.feedUrl)).toEqual([
-      "https://x.com/atom",
-      "https://x.com/feed.json",
-    ]);
+    expect(feeds.map((f) => f.feedUrl)).toEqual(["https://x.com/atom", "https://x.com/feed.json"]);
   });
 
   it("resolves relative hrefs against the page URL", () => {
@@ -102,9 +99,7 @@ describe("detectDeclaredFeeds", () => {
 
 describe("detectWellKnown — YouTube", () => {
   it("rewrites a /channel/UC… URL to its feed", () => {
-    const r = detectWellKnown(
-      "https://www.youtube.com/channel/UCXuqSBlHAE6Xw-yeJA0Tunw",
-    );
+    const r = detectWellKnown("https://www.youtube.com/channel/UCXuqSBlHAE6Xw-yeJA0Tunw");
     expect(r.feedUrl).toBe(
       "https://www.youtube.com/feeds/videos.xml?channel_id=UCXuqSBlHAE6Xw-yeJA0Tunw",
     );
@@ -152,9 +147,7 @@ describe("detectWellKnown — Reddit", () => {
   });
 
   it("ignores a post permalink", () => {
-    expect(
-      detectWellKnown("https://www.reddit.com/r/rust/comments/abc/title/"),
-    ).toBeNull();
+    expect(detectWellKnown("https://www.reddit.com/r/rust/comments/abc/title/")).toBeNull();
   });
 
   it("ignores the Reddit home page", () => {
@@ -191,9 +184,9 @@ describe("detectWellKnown — misc", () => {
 
 describe("extractYoutubeChannelId", () => {
   it("reads channelId from a JSON blob", () => {
-    expect(
-      extractYoutubeChannelId('var x={"channelId":"UCXuqSBlHAE6Xw-yeJA0Tunw"}'),
-    ).toBe("UCXuqSBlHAE6Xw-yeJA0Tunw");
+    expect(extractYoutubeChannelId('var x={"channelId":"UCXuqSBlHAE6Xw-yeJA0Tunw"}')).toBe(
+      "UCXuqSBlHAE6Xw-yeJA0Tunw",
+    );
   });
 
   it("reads an id from a /channel/ URL substring", () => {
@@ -224,7 +217,11 @@ describe("detectFeeds", () => {
     const feeds = detectFeeds({
       pageUrl: "https://www.reddit.com/r/rust",
       links: [
-        { rel: "alternate", type: "application/rss+xml", href: "https://www.reddit.com/r/rust.rss" },
+        {
+          rel: "alternate",
+          type: "application/rss+xml",
+          href: "https://www.reddit.com/r/rust.rss",
+        },
       ],
     });
     expect(feeds.length).toBeGreaterThanOrEqual(1);
@@ -235,7 +232,11 @@ describe("detectFeeds", () => {
     const feeds = detectFeeds({
       pageUrl: "https://www.reddit.com/r/rust",
       links: [
-        { rel: "alternate", type: "application/rss+xml", href: "https://www.reddit.com/r/rust/.rss" },
+        {
+          rel: "alternate",
+          type: "application/rss+xml",
+          href: "https://www.reddit.com/r/rust/.rss",
+        },
       ],
     });
     const urls = feeds.map((f) => f.feedUrl);

@@ -13,12 +13,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../api";
 import { reportError, withUndo } from "../toast";
-import {
-  applyHighlights,
-  clearHighlights,
-  plainText,
-  selectionAnchor,
-} from "../lib/highlightDom";
+import { applyHighlights, clearHighlights, plainText, selectionAnchor } from "../lib/highlightDom";
 import { captureContext } from "../lib/anchor";
 import { HIGHLIGHT_COLORS } from "../lib/highlightColors";
 import { clampAxis } from "../lib/viewport";
@@ -48,11 +43,7 @@ interface PendingSelection {
   textOffset: number;
 }
 
-export default function HighlightLayer({
-  articleId,
-  bodyRef,
-  bodyVersion,
-}: Props) {
+export default function HighlightLayer({ articleId, bodyRef, bodyVersion }: Props) {
   const { t } = useTranslation();
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [toolbar, setToolbar] = useState<ToolbarPos | null>(null);
@@ -60,17 +51,13 @@ export default function HighlightLayer({
   // The highlight whose edit popover is open, plus where to anchor it. Stores
   // the id (not a snapshot) so the popover always reflects the live highlight
   // — recolouring it re-renders the popover's active swatch immediately.
-  const [editing, setEditing] = useState<{ hlId: number; x: number; y: number } | null>(
-    null,
-  );
+  const [editing, setEditing] = useState<{ hlId: number; x: number; y: number } | null>(null);
 
   // The live highlight backing the open edit popover, looked up fresh from the
   // current set — so a recolour (which reloads `highlights`) is reflected in
   // the popover's active swatch. `null` once the highlight is deleted, which
   // also tears the popover down.
-  const editingHl = editing
-    ? (highlights.find((h) => h.id === editing.hlId) ?? null)
-    : null;
+  const editingHl = editing ? (highlights.find((h) => h.id === editing.hlId) ?? null) : null;
 
   // Load the article's stored highlights.
   const reload = () => {
@@ -164,7 +151,11 @@ export default function HighlightLayer({
     const el = bodyRef.current;
     const pending = pendingRef.current;
     if (!el || !pending) return;
-    const ctx = captureContext(plainText(el), pending.textOffset, pending.textOffset + pending.quote.length);
+    const ctx = captureContext(
+      plainText(el),
+      pending.textOffset,
+      pending.textOffset + pending.quote.length,
+    );
     try {
       await api.createHighlight({
         articleId,
@@ -195,9 +186,7 @@ export default function HighlightLayer({
         api.deleteHighlight(hl.id).catch(reportError);
       },
       revert: () =>
-        setHighlights((prev) =>
-          [...prev, hl].sort((a, b) => a.textOffset - b.textOffset),
-        ),
+        setHighlights((prev) => [...prev, hl].sort((a, b) => a.textOffset - b.textOffset)),
     });
   };
 

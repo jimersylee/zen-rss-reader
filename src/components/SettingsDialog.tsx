@@ -63,12 +63,7 @@ function useAppVersion(): string {
   return version;
 }
 
-export default function SettingsDialog({
-  onClose,
-  onToast,
-  initialSection,
-  onAddFeed,
-}: Props) {
+export default function SettingsDialog({ onClose, onToast, initialSection, onAddFeed }: Props) {
   const { t } = useTranslation();
   const [section, setSection] = useState(initialSection ?? "general");
   const feeds = useQuery({ queryKey: ["feeds"], queryFn: api.listFeeds });
@@ -131,9 +126,7 @@ export default function SettingsDialog({
             </div>
           ))}
           <div className="settings-nav-spacer" />
-          <div className="settings-version">
-            Papr{version && ` ${version}`}
-          </div>
+          <div className="settings-version">Papr{version && ` ${version}`}</div>
         </div>
 
         <div className="settings-content">
@@ -141,11 +134,7 @@ export default function SettingsDialog({
             <h2>{t(cur.labelKey)}</h2>
             <span className="sub">{subs[section]}</span>
           </div>
-          <button
-            className="settings-close"
-            onClick={onClose}
-            title={t("settings.closeTitle")}
-          >
+          <button className="settings-close" onClick={onClose} title={t("settings.closeTitle")}>
             <Icon name="x" size={15} />
           </button>
 
@@ -160,9 +149,7 @@ export default function SettingsDialog({
                 onAddFeed={onAddFeed}
               />
             )}
-            {section === "filters" && (
-              <FiltersSection feeds={feeds.data ?? []} onToast={onToast} />
-            )}
+            {section === "filters" && <FiltersSection feeds={feeds.data ?? []} onToast={onToast} />}
             {section === "sync" && <SyncSection onToast={onToast} />}
             {section === "shortcuts" && <ShortcutsSection />}
             {section === "notifications" && <NotificationsSection />}
@@ -286,8 +273,14 @@ function Segmented<T extends string>({
  *  user simply Tab-navigating through Settings would trigger one. Restrict the
  *  commit to releases of a value-changing key. */
 const SLIDER_KEYS = new Set([
-  "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown",
-  "Home", "End", "PageUp", "PageDown",
+  "ArrowLeft",
+  "ArrowRight",
+  "ArrowUp",
+  "ArrowDown",
+  "Home",
+  "End",
+  "PageUp",
+  "PageDown",
 ]);
 
 function Slider({
@@ -331,9 +324,7 @@ function Slider({
           setDraft(v);
           onChange?.(v);
         }}
-        onPointerUp={(e) =>
-          onCommit?.(Number((e.target as HTMLInputElement).value))
-        }
+        onPointerUp={(e) => onCommit?.(Number((e.target as HTMLInputElement).value))}
         onKeyUp={(e) => {
           // Only a key that can move the slider commits — a bare keyup from
           // Tab / Shift / a modifier never changed the value.
@@ -397,7 +388,9 @@ function LaunchAtLogin() {
   const { t } = useTranslation();
   const [on, setOn] = useState(false);
   useEffect(() => {
-    isEnabled().then(setOn).catch(() => {});
+    isEnabled()
+      .then(setOn)
+      .catch(() => {});
   }, []);
   const change = async (v: boolean) => {
     try {
@@ -409,10 +402,7 @@ function LaunchAtLogin() {
     }
   };
   return (
-    <Row
-      label={t("settings.general.launchAtLogin")}
-      desc={t("settings.general.launchAtLoginDesc")}
-    >
+    <Row label={t("settings.general.launchAtLogin")} desc={t("settings.general.launchAtLoginDesc")}>
       <Toggle checked={on} onChange={change} />
     </Row>
   );
@@ -473,10 +463,7 @@ function GeneralSection() {
     <>
       <div className="settings-group">
         <h3 className="settings-group-title">{t("settings.general.refresh")}</h3>
-        <Row
-          label={t("settings.general.autoRefresh")}
-          desc={t("settings.general.autoRefreshDesc")}
-        >
+        <Row label={t("settings.general.autoRefresh")} desc={t("settings.general.autoRefreshDesc")}>
           <Toggle
             checked={autoRefresh}
             onChange={(v) => {
@@ -505,10 +492,7 @@ function GeneralSection() {
       <div className="settings-group">
         <h3 className="settings-group-title">{t("settings.general.readBehavior")}</h3>
         <Row label={t("settings.general.markReadOnOpen")}>
-          <Toggle
-            checked={prefs.markReadOnOpen}
-            onChange={(v) => setPref({ markReadOnOpen: v })}
-          />
+          <Toggle checked={prefs.markReadOnOpen} onChange={(v) => setPref({ markReadOnOpen: v })} />
         </Row>
         <Row
           label={t("settings.general.markReadOnScroll")}
@@ -523,10 +507,7 @@ function GeneralSection() {
       <div className="settings-group">
         <h3 className="settings-group-title">{t("settings.general.startup")}</h3>
         <LaunchAtLogin />
-        <Row
-          label={t("settings.general.startupView")}
-          desc={t("settings.general.startupViewDesc")}
-        >
+        <Row label={t("settings.general.startupView")} desc={t("settings.general.startupViewDesc")}>
           <Select
             value={prefs.startupView}
             options={[
@@ -594,10 +575,7 @@ function AppearanceSection() {
       </div>
       <div className="settings-group">
         <h3 className="settings-group-title">{t("settings.appearance.layout")}</h3>
-        <Row
-          label={t("settings.appearance.density")}
-          desc={t("settings.appearance.densityDesc")}
-        >
+        <Row label={t("settings.appearance.density")} desc={t("settings.appearance.densityDesc")}>
           <Segmented
             value={density}
             options={[
@@ -631,19 +609,13 @@ function AppearanceSection() {
           label={t("settings.appearance.cardThumbs")}
           desc={t("settings.appearance.cardThumbsDesc")}
         >
-          <Toggle
-            checked={prefs.showCardThumbs}
-            onChange={(v) => setPref({ showCardThumbs: v })}
-          />
+          <Toggle checked={prefs.showCardThumbs} onChange={(v) => setPref({ showCardThumbs: v })} />
         </Row>
         <Row
           label={t("settings.appearance.reduceMotion")}
           desc={t("settings.appearance.reduceMotionDesc")}
         >
-          <Toggle
-            checked={prefs.reduceMotion}
-            onChange={(v) => setPref({ reduceMotion: v })}
-          />
+          <Toggle checked={prefs.reduceMotion} onChange={(v) => setPref({ reduceMotion: v })} />
         </Row>
       </div>
     </>
@@ -665,10 +637,7 @@ function ReadingSection() {
     <>
       <div className="settings-group">
         <h3 className="settings-group-title">{t("settings.reading.font")}</h3>
-        <Row
-          label={t("settings.reading.bodyFont")}
-          desc={t("settings.reading.bodyFontDesc")}
-        >
+        <Row label={t("settings.reading.bodyFont")} desc={t("settings.reading.bodyFontDesc")}>
           <Segmented
             value={readerFont}
             options={[
@@ -711,10 +680,7 @@ function ReadingSection() {
             onChange={(v) => setReader({ readerWidth: v })}
           />
         </Row>
-        <Row
-          label={t("settings.reading.readingTime")}
-          desc={t("settings.reading.readingTimeDesc")}
-        >
+        <Row label={t("settings.reading.readingTime")} desc={t("settings.reading.readingTimeDesc")}>
           <Toggle
             checked={prefs.showReadingTime}
             onChange={(v) => setPref({ showReadingTime: v })}
@@ -723,14 +689,8 @@ function ReadingSection() {
       </div>
       <div className="settings-group">
         <h3 className="settings-group-title">{t("settings.reading.fulltext")}</h3>
-        <Row
-          label={t("settings.reading.autoExtract")}
-          desc={t("settings.reading.autoExtractDesc")}
-        >
-          <Toggle
-            checked={prefs.autoExtract}
-            onChange={(v) => setPref({ autoExtract: v })}
-          />
+        <Row label={t("settings.reading.autoExtract")} desc={t("settings.reading.autoExtractDesc")}>
+          <Toggle checked={prefs.autoExtract} onChange={(v) => setPref({ autoExtract: v })} />
         </Row>
       </div>
     </>
@@ -944,9 +904,7 @@ function SubscriptionsSection({
             </div>
           ))}
           {filtered.length === 0 && (
-            <div
-              style={{ padding: "16px 4px", fontSize: 13, color: "var(--muted)" }}
-            >
+            <div style={{ padding: "16px 4px", fontSize: 13, color: "var(--muted)" }}>
               {t("settings.subscriptions.noMatch")}
             </div>
           )}
@@ -1025,10 +983,8 @@ function SyncSection({ onToast }: { onToast: (m: string) => void }) {
   const [apiKey, setApiKey] = useState("");
   const [busy, setBusy] = useState(false);
   const connected = status.data?.connected ?? false;
-  const connectedProvider: api.GReaderProvider =
-    status.data?.provider ?? "freshrss";
-  const providerLabel = (p: api.GReaderProvider) =>
-    p === "miniflux" ? "Miniflux" : "FreshRSS";
+  const connectedProvider: api.GReaderProvider = status.data?.provider ?? "freshrss";
+  const providerLabel = (p: api.GReaderProvider) => (p === "miniflux" ? "Miniflux" : "FreshRSS");
 
   const connect = async () => {
     if (!url.trim() || !user.trim()) return;
@@ -1083,7 +1039,12 @@ function SyncSection({ onToast }: { onToast: (m: string) => void }) {
   const unavailable = [
     { name: "Feedly", initial: "F", color: "#2BB24C", reason: t("settings.sync.reasonOauth") },
     { name: "Inoreader", initial: "I", color: "#1976D2", reason: t("settings.sync.reasonOauth") },
-    { name: "iCloud", initial: "☁", color: "#0089E0", reason: t("settings.sync.reasonEntitlements") },
+    {
+      name: "iCloud",
+      initial: "☁",
+      color: "#0089E0",
+      reason: t("settings.sync.reasonEntitlements"),
+    },
   ];
 
   return (
@@ -1096,8 +1057,7 @@ function SyncSection({ onToast }: { onToast: (m: string) => void }) {
               <div
                 className="logo"
                 style={{
-                  background:
-                    connectedProvider === "miniflux" ? "#1F7AEC" : "#4A4A4A",
+                  background: connectedProvider === "miniflux" ? "#1F7AEC" : "#4A4A4A",
                 }}
               >
                 {connectedProvider === "miniflux" ? "M" : "⚡"}
@@ -1109,11 +1069,7 @@ function SyncSection({ onToast }: { onToast: (m: string) => void }) {
               <span className="status on">{t("settings.sync.statusConnected")}</span>
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-              <button
-                className="s-btn primary"
-                onClick={syncNow}
-                disabled={busy}
-              >
+              <button className="s-btn primary" onClick={syncNow} disabled={busy}>
                 <Icon name="refresh" size={12} />{" "}
                 {busy ? t("settings.sync.syncing") : t("settings.sync.syncNow")}
               </button>
@@ -1142,17 +1098,11 @@ function SyncSection({ onToast }: { onToast: (m: string) => void }) {
                 className="modal-input"
                 style={{ margin: 0 }}
                 value={provider}
-                onChange={(e) =>
-                  setProvider(e.target.value as api.GReaderProvider)
-                }
+                onChange={(e) => setProvider(e.target.value as api.GReaderProvider)}
                 aria-label={t("settings.sync.provider")}
               >
-                <option value="freshrss">
-                  {t("settings.sync.providerFreshrss")}
-                </option>
-                <option value="miniflux">
-                  {t("settings.sync.providerMiniflux")}
-                </option>
+                <option value="freshrss">{t("settings.sync.providerFreshrss")}</option>
+                <option value="miniflux">{t("settings.sync.providerMiniflux")}</option>
               </select>
               <input
                 className="modal-input"
@@ -1417,7 +1367,8 @@ function StorageGroup({ onToast }: { onToast: (m: string) => void }) {
     }
   };
   const openLogs = () => {
-    api.openLogDir()
+    api
+      .openLogDir()
       .then(() => onToast(t("settings.advanced.logDirOpened")))
       .catch(reportError);
   };
@@ -1439,10 +1390,7 @@ function StorageGroup({ onToast }: { onToast: (m: string) => void }) {
       >
         <span className="s-value">{s ? formatBytes(s.dbBytes) : "—"}</span>
       </Row>
-      <Row
-        label={t("settings.advanced.retention")}
-        desc={t("settings.advanced.retentionDesc")}
-      >
+      <Row label={t("settings.advanced.retention")} desc={t("settings.advanced.retentionDesc")}>
         <Select
           value={retention}
           options={[
@@ -1457,26 +1405,17 @@ function StorageGroup({ onToast }: { onToast: (m: string) => void }) {
           }}
         />
       </Row>
-      <Row
-        label={t("settings.advanced.cleanupNow")}
-        desc={t("settings.advanced.cleanupNowDesc")}
-      >
+      <Row label={t("settings.advanced.cleanupNow")} desc={t("settings.advanced.cleanupNowDesc")}>
         <button className="s-btn" onClick={cleanup} disabled={busy}>
           {t("settings.advanced.cleanup")}
         </button>
       </Row>
-      <Row
-        label={t("settings.advanced.vacuum")}
-        desc={t("settings.advanced.vacuumDesc")}
-      >
+      <Row label={t("settings.advanced.vacuum")} desc={t("settings.advanced.vacuumDesc")}>
         <button className="s-btn" onClick={vacuum} disabled={busy}>
           {t("settings.advanced.compress")}
         </button>
       </Row>
-      <Row
-        label={t("settings.advanced.logs")}
-        desc={t("settings.advanced.logsDesc")}
-      >
+      <Row label={t("settings.advanced.logs")} desc={t("settings.advanced.logsDesc")}>
         <button className="s-btn" onClick={openLogs}>
           {t("settings.advanced.openLogs")}
         </button>
@@ -1554,18 +1493,13 @@ function NetworkGroup({ onToast }: { onToast: (m: string) => void }) {
           />
         </Row>
       )}
-      <Row
-        label={t("settings.advanced.concurrency")}
-        desc={t("settings.advanced.concurrencyDesc")}
-      >
+      <Row label={t("settings.advanced.concurrency")} desc={t("settings.advanced.concurrencyDesc")}>
         <Slider
           value={concurrency}
           min={1}
           max={16}
           onChange={setConcurrency}
-          onCommit={(v) =>
-            api.setSetting("net_concurrency", String(v)).catch(() => {})
-          }
+          onCommit={(v) => api.setSetting("net_concurrency", String(v)).catch(() => {})}
         />
       </Row>
       <Row label={t("settings.advanced.timeout")}>
@@ -1605,8 +1539,16 @@ function DangerZone({ onToast }: { onToast: (m: string) => void }) {
             // "accent" / "darkShade" are intentionally still cleared: they
             // remove any value persisted by older builds that exposed an
             // accent picker / dark-shade picker.
-            "theme", "accent", "darkShade", "density", "viewMode", "readerFont",
-            "useSerif", "readerSize", "readerLeading", "readerWidth",
+            "theme",
+            "accent",
+            "darkShade",
+            "density",
+            "viewMode",
+            "readerFont",
+            "useSerif",
+            "readerSize",
+            "readerLeading",
+            "readerWidth",
             "collapsedFolders",
           ].includes(k)
         ) {
@@ -1640,10 +1582,7 @@ function DangerZone({ onToast }: { onToast: (m: string) => void }) {
           {t("settings.advanced.reset")}
         </button>
       </Row>
-      <Row
-        label={t("settings.advanced.clearData")}
-        desc={t("settings.advanced.clearDataDesc")}
-      >
+      <Row label={t("settings.advanced.clearData")} desc={t("settings.advanced.clearDataDesc")}>
         <button className="s-btn danger" onClick={() => setConfirming("clear")}>
           {t("settings.advanced.clear")}
         </button>
@@ -1680,9 +1619,7 @@ type TranslateEngine = "llm" | "google" | "deepl" | "bing";
 function AiSettingsGroup({ onToast }: { onToast: (m: string) => void }) {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
-  const [provider, setProvider] = useState<"anthropic" | "openai" | "deepseek">(
-    "anthropic",
-  );
+  const [provider, setProvider] = useState<"anthropic" | "openai" | "deepseek">("anthropic");
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
@@ -1704,8 +1641,7 @@ function AiSettingsGroup({ onToast }: { onToast: (m: string) => void }) {
       api.getSetting("translate_target_lang"),
     ])
       .then(([p, k, m, b, eng, tl]) => {
-        if (p === "openai" || p === "anthropic" || p === "deepseek")
-          setProvider(p);
+        if (p === "openai" || p === "anthropic" || p === "deepseek") setProvider(p);
         if (k) {
           setApiKey(k);
           savedKey.current = k;
@@ -1718,8 +1654,7 @@ function AiSettingsGroup({ onToast }: { onToast: (m: string) => void }) {
           setBaseUrl(b);
           savedBaseUrl.current = b;
         }
-        if (eng === "google" || eng === "deepl" || eng === "bing" || eng === "llm")
-          setEngine(eng);
+        if (eng === "google" || eng === "deepl" || eng === "bing" || eng === "llm") setEngine(eng);
         if (tl) setTranslateLang(tl);
       })
       .catch(() => {});
@@ -1749,10 +1684,7 @@ function AiSettingsGroup({ onToast }: { onToast: (m: string) => void }) {
   return (
     <div className="settings-group">
       <h3 className="settings-group-title">{t("settings.advanced.aiSummary")}</h3>
-      <Row
-        label={t("settings.advanced.aiProvider")}
-        desc={t("settings.advanced.aiProviderDesc")}
-      >
+      <Row label={t("settings.advanced.aiProvider")} desc={t("settings.advanced.aiProviderDesc")}>
         <Select
           value={provider}
           options={[
@@ -1785,10 +1717,7 @@ function AiSettingsGroup({ onToast }: { onToast: (m: string) => void }) {
           }}
         />
       </Row>
-      <Row
-        label={t("settings.advanced.aiApiKey")}
-        desc={t("settings.advanced.aiApiKeyDesc")}
-      >
+      <Row label={t("settings.advanced.aiApiKey")} desc={t("settings.advanced.aiApiKeyDesc")}>
         <input
           className="s-text-input"
           type="password"
@@ -1808,10 +1737,7 @@ function AiSettingsGroup({ onToast }: { onToast: (m: string) => void }) {
           }}
         />
       </Row>
-      <Row
-        label={t("settings.advanced.aiModel")}
-        desc={t("settings.advanced.aiModelDesc")}
-      >
+      <Row label={t("settings.advanced.aiModel")} desc={t("settings.advanced.aiModelDesc")}>
         <input
           className="s-text-input"
           type="text"
@@ -1831,10 +1757,7 @@ function AiSettingsGroup({ onToast }: { onToast: (m: string) => void }) {
           }}
         />
       </Row>
-      <Row
-        label={t("settings.advanced.aiBaseUrl")}
-        desc={t("settings.advanced.aiBaseUrlDesc")}
-      >
+      <Row label={t("settings.advanced.aiBaseUrl")} desc={t("settings.advanced.aiBaseUrlDesc")}>
         <input
           className="s-text-input"
           type="text"
@@ -1896,13 +1819,7 @@ function AiSettingsGroup({ onToast }: { onToast: (m: string) => void }) {
 }
 
 /* ── filters ─────────────────────────────────────────────── */
-function FiltersSection({
-  feeds,
-  onToast,
-}: {
-  feeds: Feed[];
-  onToast: (m: string) => void;
-}) {
+function FiltersSection({ feeds, onToast }: { feeds: Feed[]; onToast: (m: string) => void }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const rules = useQuery({ queryKey: ["rules"], queryFn: api.listRules });
@@ -1924,7 +1841,7 @@ function FiltersSection({
   const feedName = (id: number | null) =>
     id == null
       ? t("settings.filters.allFeeds")
-      : feeds.find((f) => f.id === id)?.title ?? t("settings.filters.allFeeds");
+      : (feeds.find((f) => f.id === id)?.title ?? t("settings.filters.allFeeds"));
 
   const toggle = (r: Rule) =>
     api
@@ -1999,9 +1916,7 @@ function FiltersSection({
             <div className="rule-row" key={r.id}>
               <Toggle checked={r.enabled} onChange={() => toggle(r)} />
               <div className="rule-text" style={{ opacity: r.enabled ? 1 : 0.5 }}>
-                <div className="rule-name">
-                  {r.name || t("settings.filters.untitled")}
-                </div>
+                <div className="rule-name">{r.name || t("settings.filters.untitled")}</div>
                 <div className="rule-summary">{summary(r)}</div>
               </div>
               <div className="actions">
@@ -2012,11 +1927,7 @@ function FiltersSection({
                 >
                   <Icon name="settings" size={13} />
                 </button>
-                <button
-                  className="icon-btn"
-                  title={t("common.delete")}
-                  onClick={() => remove(r)}
-                >
+                <button className="icon-btn" title={t("common.delete")} onClick={() => remove(r)}>
                   <Icon name="trash" size={13} />
                 </button>
               </div>
@@ -2097,9 +2008,7 @@ function RuleEditor({
       } else {
         await api.createRule(name, feedId, field, q, action);
       }
-      const applied = willApply
-        ? await api.applyRuleToExisting(feedId, field, q, action)
-        : 0;
+      const applied = willApply ? await api.applyRuleToExisting(feedId, field, q, action) : 0;
       onToast(
         applied > 0
           ? t("settings.filters.appliedExisting", { count: applied })
@@ -2254,9 +2163,7 @@ function AboutSection() {
       </div>
       <h1 className="app-name">Papr</h1>
       <p className="tagline">{t("settings.about.tagline")}</p>
-      <div className="version">
-        Version{version && ` ${version}`}
-      </div>
+      <div className="version">Version{version && ` ${version}`}</div>
       <button className="s-btn about-update" onClick={onCheck} disabled={checking}>
         {checking ? t("update.checking") : t("update.checkButton")}
       </button>

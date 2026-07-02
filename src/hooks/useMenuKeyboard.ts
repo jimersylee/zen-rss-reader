@@ -15,10 +15,7 @@ import { useEffect, type KeyboardEvent, type RefObject } from "react";
  *              load is pending) — focus is moved in only once it flips true.
  *              Defaults to true for menus whose items are present immediately.
  */
-export function useMenuKeyboard(
-  ref: RefObject<HTMLElement | null>,
-  ready: boolean = true,
-) {
+export function useMenuKeyboard(ref: RefObject<HTMLElement | null>, ready: boolean = true) {
   // Restore focus to the trigger element when the menu unmounts.
   useEffect(() => {
     const trigger = document.activeElement as HTMLElement | null;
@@ -29,17 +26,13 @@ export function useMenuKeyboard(
   useEffect(() => {
     if (!ready) return;
     const items = ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]');
-    const first = Array.from(items ?? []).find(
-      (el) => !(el as HTMLButtonElement).disabled,
-    );
+    const first = Array.from(items ?? []).find((el) => !(el as HTMLButtonElement).disabled);
     (first ?? items?.[0])?.focus();
   }, [ref, ready]);
 
   /** Arrow / Home / End / Enter navigation over the (enabled) menu items. */
   const onKeyDown = (e: KeyboardEvent) => {
-    const all = Array.from(
-      ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
-    );
+    const all = Array.from(ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
     const items = all.filter((el) => !(el as HTMLButtonElement).disabled);
     if (items.length === 0) return;
     const idx = items.indexOf(document.activeElement as HTMLElement);
@@ -48,10 +41,18 @@ export function useMenuKeyboard(
       items[(i + items.length) % items.length]?.focus();
     };
     switch (e.key) {
-      case "ArrowDown": focusAt(idx + 1); break;
-      case "ArrowUp": focusAt(idx < 0 ? -1 : idx - 1); break;
-      case "Home": focusAt(0); break;
-      case "End": focusAt(items.length - 1); break;
+      case "ArrowDown":
+        focusAt(idx + 1);
+        break;
+      case "ArrowUp":
+        focusAt(idx < 0 ? -1 : idx - 1);
+        break;
+      case "Home":
+        focusAt(0);
+        break;
+      case "End":
+        focusAt(items.length - 1);
+        break;
       case "Enter":
       case " ": {
         // The menu items are real <button>s, which already fire `click` on

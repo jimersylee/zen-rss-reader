@@ -25,7 +25,10 @@ export default function DebugLogPanel({ onClose }: { onClose: () => void }) {
   }, [onClose]);
 
   useEffect(() => {
-    api.debugLogs().then(setLogs).catch(() => {});
+    api
+      .debugLogs()
+      .then(setLogs)
+      .catch(() => {});
     const un = listen<DebugLogEntry>("debug-log", (event) => {
       if (pausedRef.current) return;
       setLogs((prev) => [...prev.slice(-LIMIT + 1), event.payload]);

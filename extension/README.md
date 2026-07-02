@@ -7,7 +7,7 @@ with one click.
 ## What it does
 
 - Scans every page for `<link rel="alternate" type="application/rss+xml |
-  atom+xml | json">` tags.
+atom+xml | json">` tags.
 - Recognises well-known sources that do not declare a feed: YouTube channels
   and playlists, Reddit subreddits, and Mastodon profiles — the feed URL is
   derived the same way the Papr desktop app does it.
@@ -33,7 +33,7 @@ about the scheme.
 The extension requests **no permissions**. Feed detection runs entirely in a
 declared content script (`content_scripts` in the manifest), and the popup
 talks to that content script with `chrome.tabs.sendMessage` — none of which
-needs the `"tabs"` permission. Reading a tab's URL or title *would* require it,
+needs the `"tabs"` permission. Reading a tab's URL or title _would_ require it,
 but the extension never does: it only ever uses `tab.id`. Keeping the
 permission list empty means the browser shows no install-time warning.
 

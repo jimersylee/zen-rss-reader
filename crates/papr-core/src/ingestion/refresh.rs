@@ -252,9 +252,7 @@ pub async fn refresh_core(
                 // `/@user.rss` → mastodon). A no-op for an already classified feed.
                 let refined = parse::refine_source_type(SourceType::Rss, &parsed, &feed_url);
                 let _ = db::refine_feed_source_type(&conn, feed_id, refined);
-                log::info!(
-                    "refresh: feed #{feed_id} updated: {feed_url}; new_articles={new_here}"
-                );
+                log::info!("refresh: feed #{feed_id} updated: {feed_url}; new_articles={new_here}");
             }
         }
 

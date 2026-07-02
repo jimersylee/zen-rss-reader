@@ -72,10 +72,7 @@ export default function ArticleList({ onToast }: Props) {
       (firstParam as number) > 0 ? Math.max(0, (firstParam as number) - PAGE) : undefined,
   });
 
-  const items: ArticleSummary[] = useMemo(
-    () => browse.data?.pages.flat() ?? [],
-    [browse.data],
-  );
+  const items: ArticleSummary[] = useMemo(() => browse.data?.pages.flat() ?? [], [browse.data]);
   // Global row offset of `items[0]` — the param of the earliest loaded page
   // (which can sit below the anchor once the user pages upward). Global index
   // of `items[k]` is `baseOffset + k`, the bridge between the virtual list's
@@ -84,13 +81,7 @@ export default function ArticleList({ onToast }: Props) {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const rowEstimate =
-    viewMode === "card"
-      ? 320
-      : density === "compact"
-        ? 78
-        : density === "spacious"
-          ? 122
-          : 98;
+    viewMode === "card" ? 320 : density === "compact" ? 78 : density === "spacious" ? 122 : 98;
   const virt = useVirtualizer({
     count: items.length,
     getScrollElement: () => scrollRef.current,
@@ -119,12 +110,7 @@ export default function ArticleList({ onToast }: Props) {
   // normal newest-first browse never triggers it.
   useEffect(() => {
     const first = virt.getVirtualItems()[0];
-    if (
-      first &&
-      first.index <= 5 &&
-      browse.hasPreviousPage &&
-      !browse.isFetchingPreviousPage
-    ) {
+    if (first && first.index <= 5 && browse.hasPreviousPage && !browse.isFetchingPreviousPage) {
       browse.fetchPreviousPage();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -290,9 +276,7 @@ export default function ArticleList({ onToast }: Props) {
       const n = await api.markAllRead(query);
       actions.refreshAfterBulk();
       onToast(
-        n > 0
-          ? t("articleList.markedReadToast", { count: n })
-          : t("articleList.nothingToMark"),
+        n > 0 ? t("articleList.markedReadToast", { count: n }) : t("articleList.nothingToMark"),
       );
     } catch (e) {
       reportError(e);
@@ -319,7 +303,12 @@ export default function ArticleList({ onToast }: Props) {
   };
 
   const articleMenu = (a: ArticleSummary): MenuEntry[] => [
-    { icon: "open", label: t("articleList.menuOpen"), shortcut: "⏎", onClick: () => openArticle(a.id) },
+    {
+      icon: "open",
+      label: t("articleList.menuOpen"),
+      shortcut: "⏎",
+      onClick: () => openArticle(a.id),
+    },
     ...(a.url
       ? ([
           {
@@ -339,9 +328,7 @@ export default function ArticleList({ onToast }: Props) {
     },
     {
       icon: a.readLater ? "bookmark-fill" : "bookmark",
-      label: a.readLater
-        ? t("articleList.menuRemoveReadLater")
-        : t("articleList.menuAddReadLater"),
+      label: a.readLater ? t("articleList.menuRemoveReadLater") : t("articleList.menuAddReadLater"),
       shortcut: "B",
       onClick: () => actions.setReadLater(a.id, !a.readLater),
     },
@@ -358,9 +345,10 @@ export default function ArticleList({ onToast }: Props) {
             icon: "copy",
             label: t("articleList.menuCopyLink"),
             onClick: () =>
-              navigator.clipboard
-                .writeText(a.url!)
-                .then(() => onToast(t("articleList.linkCopied")), () => {}),
+              navigator.clipboard.writeText(a.url!).then(
+                () => onToast(t("articleList.linkCopied")),
+                () => {},
+              ),
           },
         ] as MenuEntry[])
       : []),
@@ -394,9 +382,7 @@ export default function ArticleList({ onToast }: Props) {
       <div className="list-header" {...(isMac && { "data-tauri-drag-region": true })}>
         <h1 className="list-title" id="article-list-title">
           {/* Smart views re-translate live; feed/folder/tag keep their own title. */}
-          {query.kind === "feed" ||
-          query.kind === "folder" ||
-          query.kind === "tag"
+          {query.kind === "feed" || query.kind === "folder" || query.kind === "tag"
             ? queryLabel
             : t(`smart.${query.kind}`)}
           <span className="count">{browse.isLoading ? t("common.loading") : showCount}</span>
@@ -419,11 +405,7 @@ export default function ArticleList({ onToast }: Props) {
             {unreadOnly ? t("articleList.unreadOnly") : t("smart.all")}
           </button>
           <div style={{ flex: 1 }} />
-          <button
-            className="list-meta-btn"
-            onClick={markAll}
-            title={t("articleList.markAllRead")}
-          >
+          <button className="list-meta-btn" onClick={markAll} title={t("articleList.markAllRead")}>
             <Icon name="check-all" size={12} />
             {t("articleList.markRead")}
           </button>
@@ -475,9 +457,7 @@ export default function ArticleList({ onToast }: Props) {
             role="listbox"
             tabIndex={0}
             aria-labelledby="article-list-title"
-            aria-activedescendant={
-              selectedId != null ? `option-article-${selectedId}` : undefined
-            }
+            aria-activedescendant={selectedId != null ? `option-article-${selectedId}` : undefined}
             onKeyDown={onListKeyDown}
             style={{
               height: virt.getTotalSize(),
@@ -526,9 +506,7 @@ export default function ArticleList({ onToast }: Props) {
                     onMouseEnter={(e) => onHover(a, e)}
                     onMouseLeave={leaveHover}
                   >
-                    {viewMode === "card" && showCardThumbs && (
-                      <CardThumb article={a} />
-                    )}
+                    {viewMode === "card" && showCardThumbs && <CardThumb article={a} />}
                     <div className="art-head">
                       {!a.isRead && <span className="art-dot" />}
                       <span className="art-feed">{a.feedTitle}</span>
@@ -569,7 +547,6 @@ export default function ArticleList({ onToast }: Props) {
           onClose={() => setMenu(null)}
         />
       )}
-
     </div>
   );
 }
@@ -605,12 +582,7 @@ function CardThumb({ article }: { article: ArticleSummary }) {
   );
 }
 
-function HoverPreview({
-  article,
-  top,
-  left,
-  feedTitle,
-}: Hover & { feedTitle: string }) {
+function HoverPreview({ article, top, left, feedTitle }: Hover & { feedTitle: string }) {
   // Clamp the preview inside the viewport. The card is a fixed 340px wide;
   // the 192px height below pairs with the 8px margin to keep the historical
   // `innerHeight - 200` bottom pull-back. The shared helper bounds both edges

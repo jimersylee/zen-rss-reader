@@ -28,8 +28,7 @@ interface Props {
 
 function youtubeId(url: string | null): string | null {
   if (!url) return null;
-  const m =
-    url.match(/[?&]v=([\w-]{11})/) || url.match(/youtu\.be\/([\w-]{11})/);
+  const m = url.match(/[?&]v=([\w-]{11})/) || url.match(/youtu\.be\/([\w-]{11})/);
   return m ? m[1] : null;
 }
 
@@ -75,11 +74,7 @@ function estimateReadMinutes(text: string): number {
   }
   // Words, with CJK characters stripped so they are not also counted as
   // single-character "words" by the latin path.
-  const latinWords = text
-    .replace(CJK_CHAR_GLOBAL, " ")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean).length;
+  const latinWords = text.replace(CJK_CHAR_GLOBAL, " ").trim().split(/\s+/).filter(Boolean).length;
   const minutes = cjkChars / 480 + latinWords / 220;
   return Math.max(2, Math.round(minutes));
 }
@@ -213,9 +208,7 @@ export default function Reader({ onToast }: Props) {
   // Feed list, so the article's source feed can be checked for its per-feed
   // auto-translate flag. Shared cache key with the sidebar — no extra fetch.
   const feeds = useQuery({ queryKey: ["feeds"], queryFn: api.listFeeds });
-  const autoTranslateFeed = !!(
-    a && feeds.data?.find((f) => f.id === a.feedId)?.autoTranslate
-  );
+  const autoTranslateFeed = !!(a && feeds.data?.find((f) => f.id === a.feedId)?.autoTranslate);
 
   const readMinutes = useMemo(() => {
     return estimateReadMinutes(bodyPlainText(a?.extractedHtml || a?.contentHtml || ""));
@@ -458,18 +451,15 @@ export default function Reader({ onToast }: Props) {
 
   const hasExtracted = !!a?.extractedHtml;
   const canTranslate = !!(a?.extractedHtml || a?.contentHtml);
-  const baseBody =
-    (showExtracted && a?.extractedHtml ? a.extractedHtml : a?.contentHtml) || "";
+  const baseBody = (showExtracted && a?.extractedHtml ? a.extractedHtml : a?.contentHtml) || "";
   const jobForTarget = job && job.lang === targetLang ? job : undefined;
   const translating = jobForTarget?.status === "translating";
   const cachedValid = !!a?.translatedHtml && a.translatedLang === targetLang;
-  const translatedBody =
-    jobForTarget?.html || (cachedValid ? a?.translatedHtml ?? "" : "");
+  const translatedBody = jobForTarget?.html || (cachedValid ? (a?.translatedHtml ?? "") : "");
   const hasTranslation = !!translatedBody;
   const showToggle = hasTranslation || translating;
   const body = showTranslation
-    ? translatedBody ||
-      (translating ? `<p><em>${t("reader.translating")}</em></p>` : baseBody)
+    ? translatedBody || (translating ? `<p><em>${t("reader.translating")}</em></p>` : baseBody)
     : baseBody;
   const displayBody = proxiedBody?.source === body ? proxiedBody.html : body;
 
@@ -610,13 +600,18 @@ export default function Reader({ onToast }: Props) {
     return () => window.clearTimeout(timer);
   }, [markReadIfAtFoot, showExtracted, a?.extractedHtml, a?.contentHtml]);
 
-
   const copyLink = () => {
     if (!a?.url) return;
-    navigator.clipboard.writeText(a.url).then(() => onToast(t("reader.linkCopied")), () => {});
+    navigator.clipboard.writeText(a.url).then(
+      () => onToast(t("reader.linkCopied")),
+      () => {},
+    );
   };
   const copyText = (text: string, toastKey: string) => {
-    navigator.clipboard.writeText(text).then(() => onToast(t(toastKey)), () => {});
+    navigator.clipboard.writeText(text).then(
+      () => onToast(t(toastKey)),
+      () => {},
+    );
   };
   // Save a feed image to disk. The bytes are fetched in Rust (not the webview)
   // so the request's Referer can walk the same hotlink-protection fallbacks
@@ -660,8 +655,8 @@ export default function Reader({ onToast }: Props) {
           </div>
           <div>{t("reader.emptySelectArticle")}</div>
           <div style={{ fontSize: 11.5, color: "var(--muted-2)" }}>
-            {t("reader.emptyHintPrefix")} <kbd style={kbd}>J</kbd> /{" "}
-            <kbd style={kbd}>K</kbd> {t("reader.emptyHintSuffix")}
+            {t("reader.emptyHintPrefix")} <kbd style={kbd}>J</kbd> / <kbd style={kbd}>K</kbd>{" "}
+            {t("reader.emptyHintSuffix")}
           </div>
         </div>
       </div>
@@ -694,14 +689,8 @@ export default function Reader({ onToast }: Props) {
           <div className="reader-scroll">
             <div className="article reader-content" aria-hidden="true">
               <div className="sk-line" style={{ width: "28%" }} />
-              <div
-                className="sk-line"
-                style={{ width: "82%", height: 24, marginBottom: 18 }}
-              />
-              <div
-                className="sk-line"
-                style={{ width: "44%", marginBottom: 30 }}
-              />
+              <div className="sk-line" style={{ width: "82%", height: 24, marginBottom: 18 }} />
+              <div className="sk-line" style={{ width: "44%", marginBottom: 30 }} />
               {Array.from({ length: 9 }).map((_, i) => (
                 <div
                   key={i}
@@ -772,9 +761,7 @@ export default function Reader({ onToast }: Props) {
           className={`tb-btn ${hasExtracted && showExtracted ? "on" : ""} ${
             extract.isPending ? "spinning" : ""
           }`}
-          onClick={() =>
-            hasExtracted ? setShowExtracted((v) => !v) : extract.mutate(a.id)
-          }
+          onClick={() => (hasExtracted ? setShowExtracted((v) => !v) : extract.mutate(a.id))}
           // Extraction needs the source URL; without one (and nothing
           // extracted yet) the button can only error, so disable it.
           disabled={extract.isPending || (!hasExtracted && !a.url)}
@@ -844,10 +831,7 @@ export default function Reader({ onToast }: Props) {
         <div className="reader-webview">
           <div className="reader-webview-bar">
             <span className="reader-webview-url">{a.url}</span>
-            <button
-              className="reader-webview-open"
-              onClick={() => openUrl(a.url!).catch(() => {})}
-            >
+            <button className="reader-webview-open" onClick={() => openUrl(a.url!).catch(() => {})}>
               {t("reader.tbOpenInBrowser")}
             </button>
           </div>
@@ -857,234 +841,233 @@ export default function Reader({ onToast }: Props) {
           <div className="reader-webview-host" ref={pageHostRef} />
         </div>
       ) : (
-      <div
-        className="reader-scroll"
-        ref={scrollRef}
-        onScroll={onScroll}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          // Capture what the click landed on so the menu can add image- and
-          // selection-specific actions (the native menu is suppressed app-wide;
-          // see main.tsx).
-          const img = (e.target as HTMLElement).closest("img") as HTMLImageElement | null;
-          const sel = window.getSelection();
-          const selection =
-            sel && !sel.isCollapsed ? sel.toString().trim() : "";
-          setCtxMenu({
-            x: e.clientX,
-            y: e.clientY,
-            // data-papr-src holds the real address when the image was
-            // recovered through the backend and src is an inline data: URL.
-            imageUrl: img?.dataset.paprSrc || img?.currentSrc || img?.getAttribute("src") || undefined,
-            selection: selection || undefined,
-          });
-        }}
-      >
-        <article className="article reader-content" key={a.id}>
-          <button
-            type="button"
-            className="article-feed"
-            title={t("reader.viewAllFromFeed")}
-            onClick={() =>
-              useUi.getState().select({ kind: "feed", value: a.feedId }, a.feedTitle)
-            }
-          >
-            <Icon name="rss" size={13} />
-            {a.feedTitle}
-          </button>
-          <h1 className="article-title">{a.title}</h1>
-          <div className="article-meta">
-            {a.author && <span className="author">{a.author}</span>}
-            {a.author && a.publishedAt && <span>·</span>}
-            {a.publishedAt && <span>{fullDate(a.publishedAt)}</span>}
-            {showReadingTime && (
-              <>
-                <span>·</span>
-                <span>{t("reader.readMinutes", { count: readMinutes })}</span>
-              </>
-            )}
-            {extract.isPending && (
-              <>
-                <span>·</span>
-                <span>{t("reader.extractingFullText")}</span>
-              </>
-            )}
-          </div>
-
-          {a.tags.length > 0 && (
-            <div className="article-tags">
-              {a.tags.map((tag) => (
-                <button
-                  key={tag.id}
-                  className="article-tag"
-                  style={{ "--tag-c": tagColor(tag.color) } as React.CSSProperties}
-                  onClick={() =>
-                    useUi.getState().select({ kind: "tag", value: tag.id }, tag.name)
-                  }
-                >
-                  <span className="tag-dot" />
-                  {tag.name}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {ytId ? (
-            <iframe
-              style={{ width: "100%", aspectRatio: "16 / 9" }}
-              // Privacy-enhanced host: YouTube sets no tracking cookies
-              // until the viewer actually starts the video.
-              src={`https://www.youtube-nocookie.com/embed/${ytId}`}
-              title={a.title}
-              referrerPolicy="strict-origin-when-cross-origin"
-              allowFullScreen
-            />
-          ) : (
-            a.imageUrl &&
-            !heroBroken &&
-            // Skip the hero when the body already embeds the same image, so
-            // feeds that repeat their lead image don't show it twice.
-            !body.includes(a.imageUrl) && (
-              <img
-                src={heroDataUrl ?? a.imageUrl}
-                alt=""
-                // The original URL when src is a recovered data: URL, so the
-                // context-menu copy/save actions see a real address.
-                data-papr-src={heroDataUrl ? a.imageUrl : undefined}
-                // No Referer, for the same hotlink-protection reason feed-body
-                // images are sanitized this way (e.g. *.sinaimg.cn 403s a
-                // request carrying our origin). See `sanitize`.
-                referrerPolicy="no-referrer"
-                // Same recovery as body images: hosts that *require* a Referer
-                // (cdnfile.sspai.com) 403 the direct load, so retry through
-                // the backend's Referer-fallback fetch before giving up.
-                onError={() => {
-                  // A failing data: URL means the recovered bytes weren't a
-                  // renderable image — don't loop, give up.
-                  if (heroDataUrl) {
-                    setHeroBroken(true);
-                    return;
-                  }
-                  const articleId = a.id;
-                  api
-                    .fetchImage(a.imageUrl!, a.url)
-                    .then((buf) => {
-                      if (useUi.getState().selectedArticleId !== articleId) return;
-                      setHeroDataUrl(imageDataUrl(a.imageUrl!, buf));
-                    })
-                    .catch(() => {
-                      if (useUi.getState().selectedArticleId !== articleId) return;
-                      setHeroBroken(true);
-                    });
-                }}
-              />
-            )
-          )}
-
-          {a.enclosures
-            .filter((e) => e.mimeType?.startsWith("audio"))
-            .map((e, i) => {
-              const isPlaying = playingSrc === e.url;
-              return (
-                <button
-                  className={`episode ${isPlaying ? "playing" : ""}`}
-                  key={`a${i}`}
-                  onClick={() =>
-                    playTrack({
-                      articleId: a.id,
-                      title: a.title,
-                      feedTitle: a.feedTitle,
-                      src: e.url,
-                    })
-                  }
-                >
-                  <span className="episode-play">
-                    <Icon name={isPlaying ? "pause" : "play"} size={15} />
-                  </span>
-                  <span className="episode-text">
-                    {isPlaying
-                      ? t("reader.episodePlaying")
-                      : t("reader.episodePlay")}
-                  </span>
-                </button>
-              );
-            })}
-          {a.enclosures
-            .filter((e) => e.mimeType?.startsWith("video"))
-            .map((e, i) => (
-              <div className="enclosure" key={`v${i}`}>
-                <video controls src={e.url} />
-              </div>
-            ))}
-
-          {showToggle && (
-            <div className="tr-toggle" role="group" aria-label={t("reader.tbTranslate")}>
-              <button
-                className={!showTranslation ? "on" : ""}
-                aria-pressed={!showTranslation}
-                onClick={() => setShowTranslation(false)}
-              >
-                {t("reader.original")}
-              </button>
-              <button
-                className={showTranslation ? "on" : ""}
-                aria-pressed={showTranslation}
-                onClick={() => setShowTranslation(true)}
-              >
-                {t("reader.translation")}
-              </button>
-              {/* Temporary per-article switchers — change engine or language for
-                  this translation only, without touching the configured defaults;
-                  switching re-translates with the new choice straight away. */}
-              <select
-                className="s-select tr-sel"
-                value={engine}
-                aria-label={t("reader.translateEngine")}
-                onChange={(e) => {
-                  setTmpEngine(e.target.value);
-                  run(targetLang, e.target.value);
-                }}
-              >
-                <option value="llm">{t("reader.translateEngineLlm")}</option>
-                <option value="google">Google</option>
-                <option value="deepl">DeepL</option>
-                <option value="bing">Bing</option>
-              </select>
-              <select
-                className="s-select tr-sel"
-                value={targetLang}
-                aria-label={t("reader.translateTitle")}
-                onChange={(e) => {
-                  setTmpLang(e.target.value);
-                  run(e.target.value, engine);
-                }}
-              >
-                {LANGUAGES.map((l) => (
-                  <option key={l.code} value={l.code}>
-                    {l.label}
-                  </option>
-                ))}
-              </select>
-              {translating && (
-                <span className="tr-progress">
-                  {t("reader.translating")}
-                  {jobForTarget && jobForTarget.total > 0 &&
-                    ` ${jobForTarget.done}/${jobForTarget.total}`}
-                </span>
+        <div
+          className="reader-scroll"
+          ref={scrollRef}
+          onScroll={onScroll}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            // Capture what the click landed on so the menu can add image- and
+            // selection-specific actions (the native menu is suppressed app-wide;
+            // see main.tsx).
+            const img = (e.target as HTMLElement).closest("img") as HTMLImageElement | null;
+            const sel = window.getSelection();
+            const selection = sel && !sel.isCollapsed ? sel.toString().trim() : "";
+            setCtxMenu({
+              x: e.clientX,
+              y: e.clientY,
+              // data-papr-src holds the real address when the image was
+              // recovered through the backend and src is an inline data: URL.
+              imageUrl:
+                img?.dataset.paprSrc || img?.currentSrc || img?.getAttribute("src") || undefined,
+              selection: selection || undefined,
+            });
+          }}
+        >
+          <article className="article reader-content" key={a.id}>
+            <button
+              type="button"
+              className="article-feed"
+              title={t("reader.viewAllFromFeed")}
+              onClick={() =>
+                useUi.getState().select({ kind: "feed", value: a.feedId }, a.feedTitle)
+              }
+            >
+              <Icon name="rss" size={13} />
+              {a.feedTitle}
+            </button>
+            <h1 className="article-title">{a.title}</h1>
+            <div className="article-meta">
+              {a.author && <span className="author">{a.author}</span>}
+              {a.author && a.publishedAt && <span>·</span>}
+              {a.publishedAt && <span>{fullDate(a.publishedAt)}</span>}
+              {showReadingTime && (
+                <>
+                  <span>·</span>
+                  <span>{t("reader.readMinutes", { count: readMinutes })}</span>
+                </>
+              )}
+              {extract.isPending && (
+                <>
+                  <span>·</span>
+                  <span>{t("reader.extractingFullText")}</span>
+                </>
               )}
             </div>
-          )}
 
-          <div
-            className="article-body"
-            ref={bodyRef}
-            onClick={makeLinkClickHandler(a.url)}
-            dangerouslySetInnerHTML={{
-              __html: displayBody || `<p><em>${t("reader.noContent")}</em></p>`,
-            }}
-          />
-        </article>
-      </div>
+            {a.tags.length > 0 && (
+              <div className="article-tags">
+                {a.tags.map((tag) => (
+                  <button
+                    key={tag.id}
+                    className="article-tag"
+                    style={{ "--tag-c": tagColor(tag.color) } as React.CSSProperties}
+                    onClick={() =>
+                      useUi.getState().select({ kind: "tag", value: tag.id }, tag.name)
+                    }
+                  >
+                    <span className="tag-dot" />
+                    {tag.name}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {ytId ? (
+              <iframe
+                style={{ width: "100%", aspectRatio: "16 / 9" }}
+                // Privacy-enhanced host: YouTube sets no tracking cookies
+                // until the viewer actually starts the video.
+                src={`https://www.youtube-nocookie.com/embed/${ytId}`}
+                title={a.title}
+                referrerPolicy="strict-origin-when-cross-origin"
+                allowFullScreen
+              />
+            ) : (
+              a.imageUrl &&
+              !heroBroken &&
+              // Skip the hero when the body already embeds the same image, so
+              // feeds that repeat their lead image don't show it twice.
+              !body.includes(a.imageUrl) && (
+                <img
+                  src={heroDataUrl ?? a.imageUrl}
+                  alt=""
+                  // The original URL when src is a recovered data: URL, so the
+                  // context-menu copy/save actions see a real address.
+                  data-papr-src={heroDataUrl ? a.imageUrl : undefined}
+                  // No Referer, for the same hotlink-protection reason feed-body
+                  // images are sanitized this way (e.g. *.sinaimg.cn 403s a
+                  // request carrying our origin). See `sanitize`.
+                  referrerPolicy="no-referrer"
+                  // Same recovery as body images: hosts that *require* a Referer
+                  // (cdnfile.sspai.com) 403 the direct load, so retry through
+                  // the backend's Referer-fallback fetch before giving up.
+                  onError={() => {
+                    // A failing data: URL means the recovered bytes weren't a
+                    // renderable image — don't loop, give up.
+                    if (heroDataUrl) {
+                      setHeroBroken(true);
+                      return;
+                    }
+                    const articleId = a.id;
+                    api
+                      .fetchImage(a.imageUrl!, a.url)
+                      .then((buf) => {
+                        if (useUi.getState().selectedArticleId !== articleId) return;
+                        setHeroDataUrl(imageDataUrl(a.imageUrl!, buf));
+                      })
+                      .catch(() => {
+                        if (useUi.getState().selectedArticleId !== articleId) return;
+                        setHeroBroken(true);
+                      });
+                  }}
+                />
+              )
+            )}
+
+            {a.enclosures
+              .filter((e) => e.mimeType?.startsWith("audio"))
+              .map((e, i) => {
+                const isPlaying = playingSrc === e.url;
+                return (
+                  <button
+                    className={`episode ${isPlaying ? "playing" : ""}`}
+                    key={`a${i}`}
+                    onClick={() =>
+                      playTrack({
+                        articleId: a.id,
+                        title: a.title,
+                        feedTitle: a.feedTitle,
+                        src: e.url,
+                      })
+                    }
+                  >
+                    <span className="episode-play">
+                      <Icon name={isPlaying ? "pause" : "play"} size={15} />
+                    </span>
+                    <span className="episode-text">
+                      {isPlaying ? t("reader.episodePlaying") : t("reader.episodePlay")}
+                    </span>
+                  </button>
+                );
+              })}
+            {a.enclosures
+              .filter((e) => e.mimeType?.startsWith("video"))
+              .map((e, i) => (
+                <div className="enclosure" key={`v${i}`}>
+                  <video controls src={e.url} />
+                </div>
+              ))}
+
+            {showToggle && (
+              <div className="tr-toggle" role="group" aria-label={t("reader.tbTranslate")}>
+                <button
+                  className={!showTranslation ? "on" : ""}
+                  aria-pressed={!showTranslation}
+                  onClick={() => setShowTranslation(false)}
+                >
+                  {t("reader.original")}
+                </button>
+                <button
+                  className={showTranslation ? "on" : ""}
+                  aria-pressed={showTranslation}
+                  onClick={() => setShowTranslation(true)}
+                >
+                  {t("reader.translation")}
+                </button>
+                {/* Temporary per-article switchers — change engine or language for
+                  this translation only, without touching the configured defaults;
+                  switching re-translates with the new choice straight away. */}
+                <select
+                  className="s-select tr-sel"
+                  value={engine}
+                  aria-label={t("reader.translateEngine")}
+                  onChange={(e) => {
+                    setTmpEngine(e.target.value);
+                    run(targetLang, e.target.value);
+                  }}
+                >
+                  <option value="llm">{t("reader.translateEngineLlm")}</option>
+                  <option value="google">Google</option>
+                  <option value="deepl">DeepL</option>
+                  <option value="bing">Bing</option>
+                </select>
+                <select
+                  className="s-select tr-sel"
+                  value={targetLang}
+                  aria-label={t("reader.translateTitle")}
+                  onChange={(e) => {
+                    setTmpLang(e.target.value);
+                    run(e.target.value, engine);
+                  }}
+                >
+                  {LANGUAGES.map((l) => (
+                    <option key={l.code} value={l.code}>
+                      {l.label}
+                    </option>
+                  ))}
+                </select>
+                {translating && (
+                  <span className="tr-progress">
+                    {t("reader.translating")}
+                    {jobForTarget &&
+                      jobForTarget.total > 0 &&
+                      ` ${jobForTarget.done}/${jobForTarget.total}`}
+                  </span>
+                )}
+              </div>
+            )}
+
+            <div
+              className="article-body"
+              ref={bodyRef}
+              onClick={makeLinkClickHandler(a.url)}
+              dangerouslySetInnerHTML={{
+                __html: displayBody || `<p><em>${t("reader.noContent")}</em></p>`,
+              }}
+            />
+          </article>
+        </div>
       )}
 
       <AIDrawer
@@ -1111,64 +1094,59 @@ export default function Reader({ onToast }: Props) {
         <ContextMenu
           x={ctxMenu.x}
           y={ctxMenu.y}
-          items={[
-            ...(ctxMenu.selection
-              ? [
-                  {
-                    icon: "copy" as const,
-                    label: t("reader.ctxCopy"),
-                    onClick: () => copyText(ctxMenu.selection!, "reader.textCopied"),
-                  },
-                ]
-              : []),
-            ...(ctxMenu.imageUrl
-              ? [
-                  {
-                    icon: "arrow-down" as const,
-                    label: t("reader.ctxSaveImage"),
-                    onClick: () => saveImage(ctxMenu.imageUrl!),
-                  },
-                  {
-                    icon: "copy" as const,
-                    label: t("reader.ctxCopyImageAddress"),
-                    onClick: () =>
-                      copyText(ctxMenu.imageUrl!, "reader.imageAddressCopied"),
-                  },
-                ]
-              : []),
-            ...(ctxMenu.selection || ctxMenu.imageUrl
-              ? [{ separator: true as const }]
-              : []),
-            {
-              icon: aiOpen ? "sparkle-fill" : "sparkle",
-              label: t("reader.tbAiSummary"),
-              onClick: () => setAiOpen(!aiOpen),
-            },
-            ...(canTranslate
-              ? [
-                  {
-                    icon: "globe",
-                    label: showTranslation
-                      ? t("reader.tbShowOriginal")
-                      : t("reader.tbTranslate"),
-                    onClick: () =>
-                      showTranslation
-                        ? setShowTranslation(false)
-                        : run(targetLang, engine),
-                  },
-                ]
-              : []),
-            { separator: true },
-            ...(a.url
-              ? [{ icon: "copy", label: t("reader.tbCopyLink"), onClick: copyLink }]
-              : []),
-            { separator: true },
-            {
-              icon: focusMode ? "eye-off" : "focus",
-              label: t("reader.tbFocusMode"),
-              onClick: () => setFocusMode(!focusMode),
-            },
-          ] as MenuEntry[]}
+          items={
+            [
+              ...(ctxMenu.selection
+                ? [
+                    {
+                      icon: "copy" as const,
+                      label: t("reader.ctxCopy"),
+                      onClick: () => copyText(ctxMenu.selection!, "reader.textCopied"),
+                    },
+                  ]
+                : []),
+              ...(ctxMenu.imageUrl
+                ? [
+                    {
+                      icon: "arrow-down" as const,
+                      label: t("reader.ctxSaveImage"),
+                      onClick: () => saveImage(ctxMenu.imageUrl!),
+                    },
+                    {
+                      icon: "copy" as const,
+                      label: t("reader.ctxCopyImageAddress"),
+                      onClick: () => copyText(ctxMenu.imageUrl!, "reader.imageAddressCopied"),
+                    },
+                  ]
+                : []),
+              ...(ctxMenu.selection || ctxMenu.imageUrl ? [{ separator: true as const }] : []),
+              {
+                icon: aiOpen ? "sparkle-fill" : "sparkle",
+                label: t("reader.tbAiSummary"),
+                onClick: () => setAiOpen(!aiOpen),
+              },
+              ...(canTranslate
+                ? [
+                    {
+                      icon: "globe",
+                      label: showTranslation ? t("reader.tbShowOriginal") : t("reader.tbTranslate"),
+                      onClick: () =>
+                        showTranslation ? setShowTranslation(false) : run(targetLang, engine),
+                    },
+                  ]
+                : []),
+              { separator: true },
+              ...(a.url
+                ? [{ icon: "copy", label: t("reader.tbCopyLink"), onClick: copyLink }]
+                : []),
+              { separator: true },
+              {
+                icon: focusMode ? "eye-off" : "focus",
+                label: t("reader.tbFocusMode"),
+                onClick: () => setFocusMode(!focusMode),
+              },
+            ] as MenuEntry[]
+          }
           onClose={() => setCtxMenu(null)}
         />
       )}

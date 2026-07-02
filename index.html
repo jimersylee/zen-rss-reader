@@ -29,7 +29,11 @@
     <!-- Boot styles: a themed splash shown until React has mounted. They
          exist before the app stylesheet loads, so there is no FOUC. -->
     <style>
-      html, body { height: 100%; margin: 0; }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
       #app-loading {
         position: fixed;
         inset: 0;
@@ -41,10 +45,19 @@
         gap: 18px;
         background: #f6f3ec;
         transition: opacity 0.32s ease;
-        font-family: "Inter Tight", -apple-system, BlinkMacSystemFont, sans-serif;
+        font-family:
+          "Inter Tight",
+          -apple-system,
+          BlinkMacSystemFont,
+          sans-serif;
       }
-      html[data-theme="dark"] #app-loading { background: #16140f; }
-      #app-loading.hide { opacity: 0; pointer-events: none; }
+      html[data-theme="dark"] #app-loading {
+        background: #16140f;
+      }
+      #app-loading.hide {
+        opacity: 0;
+        pointer-events: none;
+      }
       #app-loading .brand {
         font-size: 15px;
         font-weight: 600;
@@ -60,7 +73,11 @@
         border-top-color: rgba(128, 122, 112, 0.85);
         animation: app-spin 0.7s linear infinite;
       }
-      @keyframes app-spin { to { transform: rotate(360deg); } }
+      @keyframes app-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
     </style>
   </head>
 

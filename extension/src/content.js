@@ -43,10 +43,7 @@
     cached = PaprDetect.detectFeeds({
       pageUrl: location.href,
       links: readLinks(),
-      pageHtml:
-        isYoutube && document.documentElement
-          ? document.documentElement.outerHTML
-          : "",
+      pageHtml: isYoutube && document.documentElement ? document.documentElement.outerHTML : "",
     });
     return cached;
   }

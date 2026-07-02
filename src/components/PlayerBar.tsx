@@ -12,9 +12,7 @@ function clock(s: number): string {
   const sec = (total % 60).toString().padStart(2, "0");
   const min = Math.floor(total / 60) % 60;
   const hr = Math.floor(total / 3600);
-  return hr > 0
-    ? `${hr}:${min.toString().padStart(2, "0")}:${sec}`
-    : `${min}:${sec}`;
+  return hr > 0 ? `${hr}:${min.toString().padStart(2, "0")}:${sec}` : `${min}:${sec}`;
 }
 
 /**
@@ -109,19 +107,14 @@ export default function PlayerBar() {
       setTime(to);
     }
   };
-  const nudge = (delta: number) =>
-    seek(Math.min(seekMax || Infinity, Math.max(0, time + delta)));
+  const nudge = (delta: number) => seek(Math.min(seekMax || Infinity, Math.max(0, time + delta)));
   const cycleRate = () => {
     // indexOf is -1 for an unknown rate, so this lands on the first entry.
     const i = PLAYBACK_RATES.indexOf(rate as (typeof PLAYBACK_RATES)[number]);
     setRate(PLAYBACK_RATES[(i + 1) % PLAYBACK_RATES.length]);
   };
 
-  const playLabel = failed
-    ? t("player.retry")
-    : playing
-      ? t("player.pause")
-      : t("player.play");
+  const playLabel = failed ? t("player.retry") : playing ? t("player.pause") : t("player.play");
 
   return (
     <div className="player-bar">

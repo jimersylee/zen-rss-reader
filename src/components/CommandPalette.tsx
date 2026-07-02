@@ -41,15 +41,40 @@ interface Item {
 }
 
 const ACTIONS: { icon: IconName; labelKey: string; hint: string; action: CommandAction }[] = [
-  { icon: "check-all", labelKey: "commandPalette.actionMarkAllRead", hint: "⇧A", action: "mark-all-read" },
-  { icon: "globe", labelKey: "commandPalette.actionToggleTheme", hint: "⇧D", action: "toggle-theme" },
-  { icon: "focus", labelKey: "commandPalette.actionToggleFocus", hint: "F", action: "toggle-focus" },
+  {
+    icon: "check-all",
+    labelKey: "commandPalette.actionMarkAllRead",
+    hint: "⇧A",
+    action: "mark-all-read",
+  },
+  {
+    icon: "globe",
+    labelKey: "commandPalette.actionToggleTheme",
+    hint: "⇧D",
+    action: "toggle-theme",
+  },
+  {
+    icon: "focus",
+    labelKey: "commandPalette.actionToggleFocus",
+    hint: "F",
+    action: "toggle-focus",
+  },
   { icon: "sparkle", labelKey: "commandPalette.actionToggleAi", hint: "I", action: "toggle-ai" },
-  { icon: "refresh", labelKey: "commandPalette.actionRefresh", hint: modCombo("R"), action: "refresh" },
+  {
+    icon: "refresh",
+    labelKey: "commandPalette.actionRefresh",
+    hint: modCombo("R"),
+    action: "refresh",
+  },
   { icon: "plus", labelKey: "commandPalette.actionAddFeed", hint: "A", action: "add-feed" },
   { icon: "folder", labelKey: "commandPalette.actionNewFolder", hint: "", action: "new-folder" },
   { icon: "open", labelKey: "commandPalette.actionOpml", hint: "", action: "opml" },
-  { icon: "settings", labelKey: "commandPalette.actionOpenSettings", hint: modCombo(","), action: "open-settings" },
+  {
+    icon: "settings",
+    labelKey: "commandPalette.actionOpenSettings",
+    hint: modCombo(","),
+    action: "open-settings",
+  },
 ];
 
 export default function CommandPalette({
@@ -108,8 +133,7 @@ export default function CommandPalette({
 
   const articleResults = useQuery({
     queryKey: ["cp-search", debounced],
-    queryFn: () =>
-      api.listArticles({ kind: "all" }, false, debounced, false, 8, 0),
+    queryFn: () => api.listArticles({ kind: "all" }, false, debounced, false, 8, 0),
     enabled: open && debounced.length > 0,
   });
 
@@ -134,10 +158,7 @@ export default function CommandPalette({
 
     const matchedFeeds = (feeds.data ?? [])
       .filter(
-        (f) =>
-          !q ||
-          f.title.toLowerCase().includes(q) ||
-          feedHost(f).toLowerCase().includes(q),
+        (f) => !q || f.title.toLowerCase().includes(q) || feedHost(f).toLowerCase().includes(q),
       )
       .slice(0, 6);
     for (const f of matchedFeeds) {
@@ -166,7 +187,16 @@ export default function CommandPalette({
     }
 
     return out;
-  }, [debounced, hasArticle, feeds.data, articleResults.data, onAction, onNavigateFeed, onNavigateArticle, t]);
+  }, [
+    debounced,
+    hasArticle,
+    feeds.data,
+    articleResults.data,
+    onAction,
+    onNavigateFeed,
+    onNavigateArticle,
+    t,
+  ]);
 
   useEffect(() => {
     if (active >= items.length) setActive(0);
@@ -276,9 +306,7 @@ export default function CommandPalette({
             role="combobox"
             aria-expanded={items.length > 0}
             aria-controls="cp-listbox"
-            aria-activedescendant={
-              items.length > 0 ? `cp-option-${active}` : undefined
-            }
+            aria-activedescendant={items.length > 0 ? `cp-option-${active}` : undefined}
             aria-autocomplete="list"
           />
           <span className="cp-esc">ESC</span>

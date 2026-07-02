@@ -95,8 +95,7 @@
   function youtubeChannelFeed(channelId) {
     return {
       title: "YouTube channel",
-      feedUrl:
-        "https://www.youtube.com/feeds/videos.xml?channel_id=" + channelId,
+      feedUrl: "https://www.youtube.com/feeds/videos.xml?channel_id=" + channelId,
       kind: "youtube",
     };
   }
@@ -161,17 +160,14 @@
         if (list && /^[A-Za-z0-9_-]{13,}$/.test(list)) {
           return {
             title: "YouTube playlist",
-            feedUrl:
-              "https://www.youtube.com/feeds/videos.xml?playlist_id=" + list,
+            feedUrl: "https://www.youtube.com/feeds/videos.xml?playlist_id=" + list,
             kind: "youtube",
           };
         }
       }
       const isVanity =
         !!segments[0] &&
-        (segments[0].charAt(0) === "@" ||
-          segments[0] === "c" ||
-          segments[0] === "user");
+        (segments[0].charAt(0) === "@" || segments[0] === "c" || segments[0] === "user");
       if (isVanity && pageHtml) {
         const id = extractYoutubeChannelId(pageHtml);
         if (id) return youtubeChannelFeed(id);
@@ -181,11 +177,7 @@
 
     // ── Reddit ──
     if (host === "reddit.com" || host.endsWith(".reddit.com")) {
-      if (
-        segments[0] === "r" &&
-        segments[1] &&
-        /^[A-Za-z0-9_]+$/.test(segments[1])
-      ) {
+      if (segments[0] === "r" && segments[1] && /^[A-Za-z0-9_]+$/.test(segments[1])) {
         const sub = segments[1];
         const listing = segments[2];
         if (!listing) {
@@ -198,8 +190,7 @@
         if (REDDIT_LISTINGS.indexOf(listing) !== -1) {
           return {
             title: "r/" + sub + "/" + listing,
-            feedUrl:
-              "https://www.reddit.com/r/" + sub + "/" + listing + "/.rss",
+            feedUrl: "https://www.reddit.com/r/" + sub + "/" + listing + "/.rss",
             kind: "reddit",
           };
         }
@@ -208,11 +199,7 @@
     }
 
     // ── Mastodon: a profile is exactly one "@"-prefixed path segment. ──
-    if (
-      segments.length === 1 &&
-      segments[0].charAt(0) === "@" &&
-      segments[0].length > 1
-    ) {
+    if (segments.length === 1 && segments[0].charAt(0) === "@" && segments[0].length > 1) {
       if (segments[0].slice(-4) === ".rss") return null;
       return {
         title: segments[0],

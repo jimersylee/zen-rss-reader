@@ -21,8 +21,7 @@ function render(feeds) {
     return;
   }
   empty.hidden = true;
-  subtitle.textContent =
-    feeds.length + " feed" + (feeds.length === 1 ? "" : "s") + " on this page";
+  subtitle.textContent = feeds.length + " feed" + (feeds.length === 1 ? "" : "s") + " on this page";
 
   for (const feed of feeds) {
     const li = document.createElement("li");
