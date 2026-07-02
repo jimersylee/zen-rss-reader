@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"extension/**/*.{js,html,json,md}\" \"*.{html,ts,json}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"extension/**/*.{js,html,json,md}\" \"*.{html,ts,json}\"",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"extension/**/*.{js,html,json,md}\" \"*.{html,ts,json}\" && cargo fmt --all",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"extension/**/*.{js,html,json,md}\" \"*.{html,ts,json}\" && cargo fmt --all -- --check",
     "preview": "vite preview",
     "tauri": "tauri",
     "test": "vitest run"
