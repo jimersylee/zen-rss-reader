@@ -739,6 +739,16 @@ pub fn feed_urls_for_sync(conn: &Connection) -> AppResult<Vec<String>> {
     Ok(rows)
 }
 
+pub fn feed_ids_for_sync(conn: &Connection) -> AppResult<Vec<(i64, String)>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, feed_url FROM feeds WHERE source_type != 'newsletter' AND feed_url <> ''",
+    )?;
+    let rows = stmt
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(rows)
+}
+
 pub fn feed_sync_targets(conn: &Connection) -> AppResult<Vec<(String, Option<String>)>> {
     let mut stmt = conn.prepare(
         "SELECT f.feed_url, fo.name

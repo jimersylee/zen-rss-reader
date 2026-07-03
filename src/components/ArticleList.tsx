@@ -39,6 +39,7 @@ export default function ArticleList({ onToast }: Props) {
   const viewMode = useUi((s) => s.viewMode);
   const density = useUi((s) => s.density);
   const showCardThumbs = useUi((s) => s.prefs.showCardThumbs);
+  const markReadOnOpen = useUi((s) => s.prefs.markReadOnOpen);
   const selectedId = useUi((s) => s.selectedArticleId);
   const openArticle = useUi((s) => s.openArticle);
 
@@ -498,7 +499,10 @@ export default function ArticleList({ onToast }: Props) {
                     role="option"
                     id={`option-article-${a.id}`}
                     aria-selected={selectedId === a.id}
-                    onClick={() => openArticle(a.id)}
+                    onClick={() => {
+                      if (!a.isRead && markReadOnOpen) actions.setRead(a.id, true);
+                      openArticle(a.id);
+                    }}
                     onContextMenu={(e) => {
                       e.preventDefault();
                       setMenu({ x: e.clientX, y: e.clientY, article: a });

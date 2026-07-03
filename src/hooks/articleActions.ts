@@ -86,29 +86,32 @@ export function useArticleActions(onError?: (msg: string) => void) {
     refreshAfterBulk,
     refreshAfterFetch,
     async setRead(id: number, read: boolean) {
+      patch(id, { isRead: read });
       try {
         await api.markRead(id, read);
-        patch(id, { isRead: read });
         refreshLists();
       } catch (e) {
+        patch(id, { isRead: !read });
         onError?.(errorText(e));
       }
     },
     async setStarred(id: number, starred: boolean) {
+      patch(id, { isStarred: starred });
       try {
         await api.markStarred(id, starred);
-        patch(id, { isStarred: starred });
         refreshLists();
       } catch (e) {
+        patch(id, { isStarred: !starred });
         onError?.(errorText(e));
       }
     },
     async setReadLater(id: number, value: boolean) {
+      patch(id, { readLater: value });
       try {
         await api.markReadLater(id, value);
-        patch(id, { readLater: value });
         refreshLists();
       } catch (e) {
+        patch(id, { readLater: !value });
         onError?.(errorText(e));
       }
     },
