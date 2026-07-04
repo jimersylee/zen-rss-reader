@@ -1112,6 +1112,19 @@ pub fn upsert_article(
     dedup: bool,
     rules: &[Rule],
 ) -> AppResult<bool> {
+    if let Some(url) = a.url.as_deref().filter(|u| !u.is_empty()) {
+        let exists_in_feed: bool = conn.query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM articles
+                WHERE feed_id = ?1 AND url = ?2 AND remote_id IS NOT NULL
+            )",
+            params![feed_id, url],
+            |r| r.get(0),
+        )?;
+        if exists_in_feed {
+            return Ok(false);
+        }
+    }
     if dedup {
         if let Some(url) = a.url.as_deref().filter(|u| !u.is_empty()) {
             let exists: bool = conn.query_row(
@@ -3082,6 +3095,48 @@ mod tests {
         assert!(upsert_article(&conn, feed_id, &mk("g-ok", "Real Story"), false, &rules).unwrap());
         // A duplicate guid → not new (no double count).
         assert!(!upsert_article(&conn, feed_id, &mk("g-ok", "Real Story"), false, &rules).unwrap());
+    }
+
+    #[test]
+    fn upsert_article_dedups_same_feed_url_when_guid_changes() {
+        let (conn, article_id) = test_db();
+        let feed_id: i64 = conn
+            .query_row(
+                "SELECT feed_id FROM articles WHERE id = ?1",
+                [article_id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        set_remote_id(&conn, article_id, "remote-item-id").unwrap();
+        set_read(&conn, article_id, true).unwrap();
+
+        let same_url_new_guid = NewArticle {
+            guid: "local-feed-guid-after-disconnect".into(),
+            url: Some("https://example.com/a1".into()),
+            title: "Same Article".into(),
+            author: None,
+            summary: None,
+            content_html: None,
+            body_text: "copy".into(),
+            image_url: None,
+            published_at: None,
+            enclosures: Vec::new(),
+        };
+
+        assert!(
+            !upsert_article(&conn, feed_id, &same_url_new_guid, false, &[]).unwrap(),
+            "same-feed URL should not be reinserted as a new unread article"
+        );
+        let (rows, unread): (i64, i64) = conn
+            .query_row(
+                "SELECT COUNT(*), SUM(CASE WHEN is_read = 0 THEN 1 ELSE 0 END)
+                 FROM articles WHERE feed_id = ?1 AND url = ?2",
+                params![feed_id, "https://example.com/a1"],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(rows, 1);
+        assert_eq!(unread, 0);
     }
 
     // ── rule matching ────────────────────────────────────────────────

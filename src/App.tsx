@@ -394,6 +394,21 @@ export default function App() {
         doRefresh();
         return;
       }
+      if (mod && e.key.toLowerCase() === "o") {
+        if (
+          document.querySelector(
+            ".cp-backdrop, .settings-backdrop, .modal-backdrop, .debug-log-backdrop, .ctx-menu, .tag-picker, .hl-popover, .hl-toolbar",
+          )
+        )
+          return;
+        const st = useUi.getState();
+        const sel = readCurrentItems(qc).find((a) => a.id === st.selectedArticleId);
+        if (sel?.url) {
+          e.preventDefault();
+          openUrl(sel.url).catch(() => {});
+        }
+        return;
+      }
       if (mod && e.shiftKey && e.key.toLowerCase() === "l") {
         e.preventDefault();
         setDebugLogs((v) => !v);
