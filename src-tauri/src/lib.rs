@@ -1,18 +1,18 @@
-//! Papr — a local-first RSS reader. Tauri application entry point: opens the
+//! ZenRssReader — a local-first RSS reader. Tauri application entry point: opens the
 //! database, wires shared state, installs the macOS tray, and starts the
 //! background refresh scheduler.
 
 // The data layer, ingestion building blocks, sanitization and OPML now live in
-// `papr-core` (shared with the agent CLI). Re-export them under their original
+// `zen-rss-reader-core` (shared with the agent CLI). Re-export them under their original
 // crate paths so the rest of the app keeps referring to `crate::db`,
 // `crate::ingestion`, etc. unchanged.
-pub use papr_core::{ai, db, error, extraction, ingestion, models, opml, sanitize, sync};
+pub use zen_rss_reader_core::{ai, db, error, extraction, ingestion, models, opml, sanitize, sync};
 
 mod commands;
 mod notify;
 mod page_view;
 // The tauri-coupled refresh scheduler (progress channels, AppHandle) — built on
-// top of `papr_core::ingestion`. Was `ingestion::scheduler` before the split.
+// top of `zen_rss_reader_core::ingestion`. Was `ingestion::scheduler` before the split.
 mod scheduler;
 mod state;
 mod translate;
@@ -140,8 +140,8 @@ fn open_log_dir(app: tauri::AppHandle) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
-/// Handle every URL delivered through the `papr://` deep-link scheme. A
-/// `papr://subscribe?url=…` link focuses the main window and emits a
+/// Handle every URL delivered through the `zenrssreader://` deep-link scheme. A
+/// `zenrssreader://subscribe?url=…` link focuses the main window and emits a
 /// `deep-link-subscribe` event the frontend listens for to open the
 /// Add-feed dialog prefilled with the feed URL. Unrecognised links are
 /// ignored. Pure parsing lives in [`discovery::parse_deep_link`].
@@ -201,7 +201,7 @@ pub fn run() {
             // ── Database ──────────────────────────────────────────────
             let data_dir = app.path().app_data_dir().expect("resolve app data dir");
             fs::create_dir_all(&data_dir).ok();
-            let db_path = data_dir.join("papr.db");
+            let db_path = data_dir.join("zenrssreader.db");
             let conn = db::open(&db_path).expect("open database");
             // A small pool of read-only connections for UI queries — under WAL
             // they run concurrently with the writer, so the interface stays
@@ -227,7 +227,7 @@ pub fn run() {
 
             app.manage(AppState::new(conn, readers, http));
 
-            // ── papr:// deep links (feature F6) ───────────────────────
+            // ── zenrssreader:// deep links (feature F6) ───────────────────────
             // Registered after `app.manage` so the handler can always reach
             // `AppState` to buffer a cold-start link. Links opened while the
             // app is already running arrive here directly; a cold-start link
@@ -240,10 +240,10 @@ pub fn run() {
                     handle_deep_links(&handle, &urls);
                 });
                 // On Linux/Windows dev builds, register the scheme at runtime
-                // so `papr://` resolves without a full bundle install.
+                // so `zenrssreader://` resolves without a full bundle install.
                 #[cfg(any(windows, target_os = "linux"))]
                 {
-                    let _ = app.deep_link().register("papr");
+                    let _ = app.deep_link().register("zenrssreader");
                 }
             }
 
@@ -416,5 +416,5 @@ pub fn run() {
             open_log_dir,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Papr");
+        .expect("error while running ZenRssReader");
 }

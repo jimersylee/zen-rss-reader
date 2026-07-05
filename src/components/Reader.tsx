@@ -309,7 +309,7 @@ export default function Reader({ onToast }: Props) {
   // can't vary the value per host. So a failed image gets one retry through
   // the backend, which walks Referer fallbacks (fetch_image) and returns the
   // bytes; the <img> is swapped to an inline data: URL, with the original kept
-  // in data-papr-src for the context-menu actions. A data: URL (not blob:) is
+  // in data-zenrssreader-src for the context-menu actions. A data: URL (not blob:) is
   // deliberate — WKWebView/WebView2 silently drop a blob:'s backing data under
   // memory pressure (e.g. layer recompositing while scrolling), so a recovered
   // image carried by a blob: vanishes when the user scrolls away and back; the
@@ -324,22 +324,22 @@ export default function Reader({ onToast }: Props) {
     let alive = true;
     const recover = async (img: HTMLImageElement) => {
       const src = img.getAttribute("src") || "";
-      if (img.dataset.paprRetried || !/^https?:\/\//.test(src)) {
+      if (img.dataset.zenrssreaderRetried || !/^https?:\/\//.test(src)) {
         img.style.display = "none";
         return;
       }
-      img.dataset.paprRetried = "1";
+      img.dataset.zenrssreaderRetried = "1";
       try {
         const buf = await api.fetchImage(src, pageUrl);
         if (!alive) return;
-        img.dataset.paprSrc = src;
+        img.dataset.zenrssreaderSrc = src;
         img.src = imageDataUrl(src, buf);
       } catch {
         img.style.display = "none";
       }
     };
     const recoverIfBroken = (img: HTMLImageElement) => {
-      if (img.dataset.paprRetried) return;
+      if (img.dataset.zenrssreaderRetried) return;
       if (img.complete && img.naturalWidth === 0) void recover(img);
     };
     const onError = (e: Event) => void recover(e.currentTarget as HTMLImageElement);
@@ -490,7 +490,7 @@ export default function Reader({ onToast }: Props) {
         try {
           const buf = await api.fetchImage(src, a?.url);
           if (!alive) return;
-          img.dataset.paprSrc = src;
+          img.dataset.zenrssreaderSrc = src;
           img.setAttribute("src", imageDataUrl(src, buf));
           img.removeAttribute("srcset");
           img.removeAttribute("referrerpolicy");
@@ -856,10 +856,10 @@ export default function Reader({ onToast }: Props) {
             setCtxMenu({
               x: e.clientX,
               y: e.clientY,
-              // data-papr-src holds the real address when the image was
+              // data-zenrssreader-src holds the real address when the image was
               // recovered through the backend and src is an inline data: URL.
               imageUrl:
-                img?.dataset.paprSrc || img?.currentSrc || img?.getAttribute("src") || undefined,
+                img?.dataset.zenrssreaderSrc || img?.currentSrc || img?.getAttribute("src") || undefined,
               selection: selection || undefined,
             });
           }}
@@ -934,7 +934,7 @@ export default function Reader({ onToast }: Props) {
                   alt=""
                   // The original URL when src is a recovered data: URL, so the
                   // context-menu copy/save actions see a real address.
-                  data-papr-src={heroDataUrl ? a.imageUrl : undefined}
+                  data-zenrssreader-src={heroDataUrl ? a.imageUrl : undefined}
                   // No Referer, for the same hotlink-protection reason feed-body
                   // images are sanitized this way (e.g. *.sinaimg.cn 403s a
                   // request carrying our origin). See `sanitize`.

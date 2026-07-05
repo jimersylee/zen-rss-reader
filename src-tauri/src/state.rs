@@ -28,7 +28,7 @@ pub struct AppState {
     /// command and the periodic scheduler can otherwise fire concurrently —
     /// `try_lock` lets a second run bow out instead of duplicating the work.
     pub refresh_lock: Mutex<()>,
-    /// A `papr://subscribe` URL delivered before the webview registered its
+    /// A `zenrssreader://subscribe` URL delivered before the webview registered its
     /// `deep-link-subscribe` listener — typically a cold-start launch where the
     /// link arrives during `setup()`. The frontend drains this once on mount
     /// (`take_pending_deep_link`); a live link, arriving after the listener

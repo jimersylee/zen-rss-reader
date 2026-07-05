@@ -1175,7 +1175,7 @@ pub async fn refresh_tray(app: AppHandle) -> AppResult<()> {
     Ok(())
 }
 
-/// Drain a `papr://subscribe` URL that was delivered before the webview could
+/// Drain a `zenrssreader://subscribe` URL that was delivered before the webview could
 /// receive the `deep-link-subscribe` event (a cold-start launch). The frontend
 /// calls this once on mount; returns `None` when there is nothing pending.
 #[tauri::command]

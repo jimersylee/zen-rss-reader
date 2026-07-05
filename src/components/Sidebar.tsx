@@ -521,8 +521,8 @@ export default function Sidebar({
 
       {isMac && (
         <div className="sb-brand">
-          <img className="sb-brand-mark" src="/papr.svg" alt="" />
-          <span className="sb-brand-name">Papr</span>
+          <img className="sb-brand-mark" src="/zenrssreader.svg" alt="" />
+          <span className="sb-brand-name">ZenRssReader</span>
         </div>
       )}
 

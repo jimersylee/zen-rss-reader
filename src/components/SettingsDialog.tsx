@@ -126,7 +126,7 @@ export default function SettingsDialog({ onClose, onToast, initialSection, onAdd
             </div>
           ))}
           <div className="settings-nav-spacer" />
-          <div className="settings-version">Papr{version && ` ${version}`}</div>
+          <div className="settings-version">ZenRssReader{version && ` ${version}`}</div>
         </div>
 
         <div className="settings-content">
@@ -2159,9 +2159,9 @@ function AboutSection() {
   return (
     <div className="s-about">
       <div className="mark">
-        <Icon name="papr" size={34} color="#fff" />
+        <Icon name="zenrssreader" size={34} color="#fff" />
       </div>
-      <h1 className="app-name">Papr</h1>
+      <h1 className="app-name">ZenRssReader</h1>
       <p className="tagline">{t("settings.about.tagline")}</p>
       <div className="version">Version{version && ` ${version}`}</div>
       <button className="s-btn about-update" onClick={onCheck} disabled={checking}>

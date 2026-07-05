@@ -1,15 +1,15 @@
 {
   "manifest_version": 3,
-  "name": "Papr — Feed Finder",
+  "name": "ZenRssReader — Feed Finder",
   "version": "0.1.0",
-  "description": "Detect RSS / Atom / JSON feeds on any page and subscribe in the Papr desktop app with one click.",
+  "description": "Detect RSS / Atom / JSON feeds on any page and subscribe in the ZenRssReader desktop app with one click.",
   "icons": {
     "16": "icons/icon-16.png",
     "48": "icons/icon-48.png",
     "128": "icons/icon-128.png"
   },
   "action": {
-    "default_title": "Papr — Feed Finder",
+    "default_title": "ZenRssReader — Feed Finder",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon-16.png",
@@ -29,7 +29,7 @@
   ],
   "browser_specific_settings": {
     "gecko": {
-      "id": "papr-feed-finder@papr.app",
+      "id": "zenrssreader-feed-finder@zenrssreader.app",
       "strict_min_version": "121.0"
     }
   }

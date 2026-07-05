@@ -3320,7 +3320,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "papr"
+name = "zenrssreader"
 version = "0.12.0"
 dependencies = [
  "ammonia",

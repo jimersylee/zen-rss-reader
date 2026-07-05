@@ -1,13 +1,13 @@
 /**
- * Papr content script.
+ * ZenRssReader content script.
  *
  * Runs in every page. It reads the `<link rel="alternate">` tags off the DOM,
- * hands them (plus the page URL and HTML) to the pure `PaprDetect` module,
+ * hands them (plus the page URL and HTML) to the pure `ZenRssReaderDetect` module,
  * and reports the result to the background service worker so it can paint the
  * toolbar badge. It also answers `get-feeds` requests from the popup.
  *
  * `detect.js` is listed before this file in the manifest's `content_scripts`,
- * so `globalThis.PaprDetect` is already defined here.
+ * so `globalThis.ZenRssReaderDetect` is already defined here.
  */
 (function () {
   "use strict";
@@ -39,8 +39,8 @@
     // vanity URL (`@handle`, `/c/`, `/user/`) to a channel id. Serializing the
     // whole document (`outerHTML` — often megabytes) on every other site is
     // pure waste, so only pay that cost when the page can actually use it.
-    const isYoutube = PaprDetect.isYoutubeHost(location.hostname);
-    cached = PaprDetect.detectFeeds({
+    const isYoutube = ZenRssReaderDetect.isYoutubeHost(location.hostname);
+    cached = ZenRssReaderDetect.detectFeeds({
       pageUrl: location.href,
       links: readLinks(),
       pageHtml: isYoutube && document.documentElement ? document.documentElement.outerHTML : "",

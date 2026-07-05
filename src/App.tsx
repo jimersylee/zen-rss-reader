@@ -70,7 +70,7 @@ export default function App() {
     open: false,
   });
   const [addFeed, setAddFeed] = useState(false);
-  // Feed URL handed over by a `papr://subscribe` deep link (browser extension).
+  // Feed URL handed over by a `zenrssreader://subscribe` deep link (browser extension).
   const [addFeedUrl, setAddFeedUrl] = useState<string | undefined>(undefined);
   // The standalone Explore (curated-directory marketplace) dialog.
   const [explore, setExplore] = useState(false);
@@ -217,7 +217,7 @@ export default function App() {
     };
   }, []);
 
-  // ── papr://subscribe deep links from the browser extension (F6) ──
+  // ── zenrssreader://subscribe deep links from the browser extension (F6) ──
   useEffect(() => {
     const un = listen<string>("deep-link-subscribe", (e) => {
       setAddFeedUrl(e.payload);

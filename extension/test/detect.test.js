@@ -9,7 +9,7 @@ import { describe, it, expect } from "vitest";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const PaprDetect = require("../src/detect.js");
+const ZenRssReaderDetect = require("../src/detect.js");
 
 const {
   detectDeclaredFeeds,
@@ -18,7 +18,7 @@ const {
   detectFeeds,
   buildSubscribeLink,
   isYoutubeChannelId,
-} = PaprDetect;
+} = ZenRssReaderDetect;
 
 describe("detectDeclaredFeeds", () => {
   it("finds an RSS link", () => {
@@ -254,9 +254,9 @@ describe("detectFeeds", () => {
 });
 
 describe("buildSubscribeLink", () => {
-  it("builds an encoded papr:// deep link", () => {
+  it("builds an encoded zenrssreader:// deep link", () => {
     expect(buildSubscribeLink("https://example.com/feed?a=1&b=2")).toBe(
-      "papr://subscribe?url=https%3A%2F%2Fexample.com%2Ffeed%3Fa%3D1%26b%3D2",
+      "zenrssreader://subscribe?url=https%3A%2F%2Fexample.com%2Ffeed%3Fa%3D1%26b%3D2",
     );
   });
 });

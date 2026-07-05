@@ -47,7 +47,7 @@ export type IconName =
   | "grid"
   | "text"
   | "alert"
-  | "papr"
+  | "zenrssreader"
   | "play"
   | "pause"
   | "skip-back"
@@ -401,7 +401,7 @@ export default function Icon({ name, size = 16, color = "currentColor", classNam
           <rect x="17" y="13" width="4.5" height="7" rx="2.2" />
         </svg>
       );
-    case "papr":
+    case "zenrssreader":
       return (
         <svg {...p}>
           <path d="M6 3h7l5 5v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />

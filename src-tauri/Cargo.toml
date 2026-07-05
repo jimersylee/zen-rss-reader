@@ -1,25 +1,25 @@
 [package]
-name = "papr"
+name = "zenrssreader"
 version = "0.12.0"
-description = "Papr — a modern RSS reader"
+description = "ZenRssReader — a modern RSS reader"
 authors = ["you"]
 edition = "2021"
-# Disable binary auto-discovery so Cargo does not also infer a `papr` binary
-# from `src/main.rs` (package-named) alongside the explicit `papr-desktop`
+# Disable binary auto-discovery so Cargo does not also infer a `zenrssreader` binary
+# from `src/main.rs` (package-named) alongside the explicit `zenrssreader-desktop`
 # target below. Without this, the workspace target dir could contain a stray
-# `papr` that collides with the agent CLI's binary.
+# `zenrssreader` that collides with the agent CLI's binary.
 autobins = false
 
 [lib]
-name = "papr_lib"
+name = "zen_rss_reader_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
-# Distinct binary name so the desktop app's cargo output (`papr-desktop`) does
-# not collide with the agent CLI's `papr` binary in the shared workspace target
-# dir. The bundled product is still "Papr" (see tauri.conf.json productName /
+# Distinct binary name so the desktop app's cargo output (`zenrssreader-desktop`) does
+# not collide with the agent CLI's `zenrssreader` binary in the shared workspace target
+# dir. The bundled product is still "ZenRssReader" (see tauri.conf.json productName /
 # mainBinaryName); only the intermediate cargo binary name changes.
 [[bin]]
-name = "papr-desktop"
+name = "zenrssreader-desktop"
 path = "src/main.rs"
 
 [build-dependencies]
@@ -37,7 +37,7 @@ tauri-plugin-autostart = "2"
 tauri-plugin-os = "2"
 tauri-plugin-window-state = "2"
 # Custom-scheme deep links (feature F6): the browser extension's
-# "Subscribe in Papr" button opens a `papr://subscribe?url=…` link.
+# "Subscribe in ZenRssReader" button opens a `zenrssreader://subscribe?url=…` link.
 tauri-plugin-deep-link = "2"
 # In-app auto-update: checks the GitHub release feed, downloads the signed
 # bundle, and relaunches into the new version (process plugin does the restart).
@@ -48,7 +48,7 @@ serde_json = "1"
 
 # The UI-free core: SQLite data layer, ingestion building blocks, sanitization.
 # Shared verbatim with the agent CLI so both link the same data code.
-papr-core = { path = "../crates/papr-core" }
+zen-rss-reader-core = { path = "../crates/zen-rss-reader-core" }
 
 # data layer
 rusqlite = { version = "0.32", features = ["bundled", "functions"] }

@@ -1,23 +1,23 @@
 <div align="center">
 
-<img src="docs/logo.svg" alt="Papr" width="96" height="96" />
+<img src="docs/logo.svg" alt="ZenRssReader" width="96" height="96" />
 
-# Papr
+# ZenRssReader
 
 **A fast, native RSS reader — and a CLI your AI agent can actually drive.**
 
-<img src="docs/screenshot.webp" alt="Papr" width="820" />
+<img src="docs/screenshot.webp" alt="ZenRssReader" width="820" />
 
 </div>
 
-Papr is two front-ends over **one local database**:
+ZenRssReader is two front-ends over **one local database**:
 
 - **A desktop reader** — fast, native, offline-first. No account, no cloud.
-- **`papr`, an agent-facing CLI** — so an autonomous agent (Claude Code, Codex,
+- **`zenrssreader`, an agent-facing CLI** — so an autonomous agent (Claude Code, Codex,
   OpenCode…) can read, search and triage your feeds straight from the shell.
-  [Jump to it ↓](#papr--your-feeds-handed-to-your-agent)
+  [Jump to it ↓](#zenrssreader--your-feeds-handed-to-your-agent)
 
-Both read the same database through the shared `papr-core` crate, so the app and
+Both read the same database through the shared `zen-rss-reader-core` crate, so the app and
 the CLI can never drift apart.
 
 ---
@@ -38,18 +38,18 @@ the CLI can never drift apart.
 
 | Platform | How |
 | --- | --- |
-| **macOS** | `brew install --cask l0ng-ai/papr/papr` — or grab the `.dmg` |
+| **macOS** | `brew install --cask jimersylee/zenrssreader/zenrssreader` — or grab the `.dmg` |
 | **Windows** | Download the `.msi` installer |
 | **Linux** | Download the `.AppImage` or `.deb` |
 
-All packages live on the **[latest release](https://github.com/l0ng-ai/papr/releases/latest)**.
+All packages live on the **[latest release](https://github.com/jimersylee/zenrssreader/releases/latest)**.
 The macOS builds are Developer ID signed and notarized.
 
 ---
 
-## `papr` — your feeds, handed to your agent
+## `zenrssreader` — your feeds, handed to your agent
 
-This is what makes Papr different. `papr` is a command-line companion built **for
+This is what makes ZenRssReader different. `zenrssreader` is a command-line companion built **for
 autonomous agents** to drive over the shell. Point your agent at it and it can
 work your feeds with no GUI:
 
@@ -58,39 +58,39 @@ work your feeds with no GUI:
 - **Manage** — subscriptions, folders, tags, rules, highlights, OPML
 - **Sync** — FreshRSS / Miniflux
 
-Run bare `papr` and it prints your unread dashboard *plus the next useful
+Run bare `zenrssreader` and it prints your unread dashboard *plus the next useful
 commands*, so the agent orients with zero manual. Output is
 [TOON](https://toonformat.dev) — ~40% fewer tokens than JSON — with definitive
 counts and structured exit codes.
 
 ```console
-$ papr
+$ zenrssreader
 unread: 206   starred: 17   later: 0   feeds: 15
 articles[10]{id,feed,title,flags,date}:
   3664,V2EX,[Java] 使用 kkRepo 搭建 Maven 私服,unread.star,"2026-06-25"
   ...
-help[4]: Run `papr read <id>` to read an article's full text, ...
+help[4]: Run `zenrssreader read <id>` to read an article's full text, ...
 ```
 
 ### Hand it to your agent — one line
 
-The bundled **[`papr-rss` skill](skills/papr-rss/SKILL.md)** loads *on demand*
+The bundled **[`zen-rss-reader-rss` skill](skills/zen-rss-reader-rss/SKILL.md)** loads *on demand*
 when an agent recognizes a feed-related task, so it costs nothing until you use
 it. Install it with [`skills`](https://github.com/vercel-labs/skills):
 
 ```sh
-npx skills add https://github.com/l0ng-ai/papr/tree/main/skills/papr-rss
+npx skills add https://github.com/jimersylee/zenrssreader/tree/main/skills/zen-rss-reader-rss
 ```
 
-Want the agent *proactively* aware of your feeds every conversation? `papr setup`
+Want the agent *proactively* aware of your feeds every conversation? `zenrssreader setup`
 wires up an ambient SessionStart hook (Claude Code, Codex, OpenCode).
 
 ### Install the CLI
 
 | Platform | How |
 | --- | --- |
-| **macOS / Linux** | `brew install l0ng-ai/papr/papr-cli` |
-| **Windows** | Download `papr-x86_64-pc-windows-msvc.zip`, unzip, drop `papr.exe` on your `PATH` |
-| **Any** | Prebuilt `papr-<target>.tar.gz` from the [latest release](https://github.com/l0ng-ai/papr/releases/latest), or `cargo build --release -p papr-cli` |
+| **macOS / Linux** | `brew install jimersylee/zenrssreader/zen-rss-reader-cli` |
+| **Windows** | Download `zenrssreader-x86_64-pc-windows-msvc.zip`, unzip, drop `zenrssreader.exe` on your `PATH` |
+| **Any** | Prebuilt `zenrssreader-<target>.tar.gz` from the [latest release](https://github.com/jimersylee/zenrssreader/releases/latest), or `cargo build --release -p zen-rss-reader-cli` |
 
 > **Full command reference, agent setup, and install options → [docs/cli.md](docs/cli.md)**

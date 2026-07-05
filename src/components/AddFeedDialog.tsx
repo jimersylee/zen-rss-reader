@@ -12,7 +12,7 @@ import Icon from "./Icon";
 interface Props {
   onClose: () => void;
   onToast: (msg: string) => void;
-  /** Feed URL to prefill the feed tab with — set by a `papr://` deep link. */
+  /** Feed URL to prefill the feed tab with — set by a `zenrssreader://` deep link. */
   initialUrl?: string;
 }
 
@@ -48,7 +48,7 @@ export default function AddFeedDialog({ onClose, onToast, initialUrl }: Props) {
   const [folderId, setFolderId] = useState<number | null>(null);
   const folders = useQuery({ queryKey: ["folders"], queryFn: api.listFolders });
 
-  // A `papr://subscribe` deep link can arrive while the dialog is already
+  // A `zenrssreader://subscribe` deep link can arrive while the dialog is already
   // open (the user opened it manually first). `useState(initialUrl)` only
   // reads the prop on mount, so without this the new feed URL would be
   // silently dropped. Sync prop changes into the input and surface the feed

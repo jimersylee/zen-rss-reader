@@ -48,7 +48,7 @@
   },
   "addFeed": {
     "title": "添加订阅源",
-    "hint": "粘贴订阅源地址、网站地址，或 YouTube / Reddit / Mastodon 链接 — Papr 会自动处理。",
+    "hint": "粘贴订阅源地址、网站地址，或 YouTube / Reddit / Mastodon 链接 — ZenRssReader 会自动处理。",
     "urlLabel": "订阅源或网站地址",
     "folderLabel": "文件夹",
     "noFolder": "不归入文件夹",
@@ -243,7 +243,7 @@
       "markReadOnScrollDesc": "适合快速浏览长列表",
       "startup": "启动",
       "launchAtLogin": "开机自启动",
-      "launchAtLoginDesc": "登录系统后自动在后台启动 Papr",
+      "launchAtLoginDesc": "登录系统后自动在后台启动 ZenRssReader",
       "startupView": "启动时打开",
       "startupViewDesc": "下次打开应用时默认进入的视图",
       "startupAll": "全部文章",

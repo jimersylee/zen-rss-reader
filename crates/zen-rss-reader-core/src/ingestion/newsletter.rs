@@ -1,7 +1,7 @@
 //! Email newsletter ingestion (feature F5, Part B).
 //!
 //! Competitors offer a hosted "dedicated address" for newsletters; that needs
-//! a mail server Papr — being local-first — does not run. The local-first
+//! a mail server ZenRssReader — being local-first — does not run. The local-first
 //! equivalent is to **poll an IMAP mailbox** the user already owns (a Gmail
 //! label, a Fastmail folder, …) and turn each message into an article.
 //!
@@ -140,7 +140,7 @@ pub fn email_to_article(raw: &[u8]) -> Option<ParsedEmail> {
         .message_id()
         .map(|s| s.to_string())
         .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| format!("papr-newsletter-{}", stable_hash(raw)));
+        .unwrap_or_else(|| format!("zenrssreader-newsletter-{}", stable_hash(raw)));
 
     // ── Attachments → enclosures (so podcast-style audio mails still work). ──
     let enclosures: Vec<Enclosure> = msg
@@ -352,7 +352,7 @@ Content-Type: text/plain\r\n\
 some content\r\n";
         let p1 = email_to_article(raw).expect("parse");
         let p2 = email_to_article(raw).expect("parse");
-        assert!(p1.article.guid.starts_with("papr-newsletter-"));
+        assert!(p1.article.guid.starts_with("zenrssreader-newsletter-"));
         // Deterministic: the same bytes always hash to the same guid.
         assert_eq!(p1.article.guid, p2.article.guid);
     }

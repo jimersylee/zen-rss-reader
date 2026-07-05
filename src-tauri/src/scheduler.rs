@@ -1,10 +1,10 @@
 //! The desktop refresh scheduler: a Tauri-aware wrapper around the UI-free
-//! [`papr_core::ingestion::refresh::refresh_core`].
+//! [`zen_rss_reader_core::ingestion::refresh::refresh_core`].
 //!
 //! `refresh_all` adds what only the desktop app needs — single-flight locking,
 //! a progress channel to the webview, new-article notifications, FreshRSS sync
 //! and tray/badge updates — while the actual fetch/parse/ingest pipeline lives
-//! in `papr-core` so the agent CLI can drive the same code headlessly.
+//! in `zen-rss-reader-core` so the agent CLI can drive the same code headlessly.
 
 use crate::error::AppResult;
 use crate::ingestion::refresh;

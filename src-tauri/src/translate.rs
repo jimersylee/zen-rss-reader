@@ -125,7 +125,7 @@ pub fn strip_code_fence(s: &str) -> String {
 
 // ─────────────────────────── translation engines ───────────────────────────
 //
-// papr translates a full article body, batch by batch, with the HTML structure
+// zenrssreader translates a full article body, batch by batch, with the HTML structure
 // preserved (see `commands::ai_translate`). The original engine is a cloud LLM
 // that is handed an HTML fragment and returns the translated fragment. To let a
 // user pick a non-LLM engine instead — Google (free), DeepL, Bing — without
@@ -352,7 +352,7 @@ async fn translate_segments(
 }
 
 // ── per-engine target language codes ─────────────────────────────────────────
-// papr stores the target as `zh` / `ja` / `en`; each engine names them its own way.
+// zenrssreader stores the target as `zh` / `ja` / `en`; each engine names them its own way.
 
 fn google_code(target: &str) -> &'static str {
     match target {

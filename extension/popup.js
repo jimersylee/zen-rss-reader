@@ -1,8 +1,8 @@
 /**
- * Papr popup.
+ * ZenRssReader popup.
  *
  * Asks the active tab's content script for its detected feeds, renders them,
- * and wires each "Subscribe in Papr" button to open a `papr://subscribe?url=…`
+ * and wires each "Subscribe in ZenRssReader" button to open a `zenrssreader://subscribe?url=…`
  * deep link. Opening the deep link hands the feed to the desktop app, which
  * focuses its window and opens the Add-feed dialog prefilled.
  */
@@ -49,11 +49,11 @@ function render(feeds) {
 
     const btn = document.createElement("button");
     btn.className = "sub";
-    btn.textContent = "Subscribe in Papr";
+    btn.textContent = "Subscribe in ZenRssReader";
     btn.addEventListener("click", function () {
-      const link = PaprDetect.buildSubscribeLink(feed.feedUrl);
+      const link = ZenRssReaderDetect.buildSubscribeLink(feed.feedUrl);
       // Navigating a tab to a custom-scheme URL triggers the OS handler
-      // (the Papr desktop app) without leaving a stray http page behind.
+      // (the ZenRssReader desktop app) without leaving a stray http page behind.
       chrome.tabs.create({ url: link, active: false });
       btn.textContent = "Sent ✓";
       btn.disabled = true;

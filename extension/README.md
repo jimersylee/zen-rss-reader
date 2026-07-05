@@ -1,7 +1,7 @@
-# Papr — Feed Finder (browser extension)
+# ZenRssReader — Feed Finder (browser extension)
 
 A dependency-free Manifest V3 extension that detects RSS / Atom / JSON feeds on
-the page you are viewing and subscribes to them in the **Papr** desktop app
+the page you are viewing and subscribes to them in the **ZenRssReader** desktop app
 with one click.
 
 ## What it does
@@ -10,22 +10,22 @@ with one click.
 atom+xml | json">` tags.
 - Recognises well-known sources that do not declare a feed: YouTube channels
   and playlists, Reddit subreddits, and Mastodon profiles — the feed URL is
-  derived the same way the Papr desktop app does it.
+  derived the same way the ZenRssReader desktop app does it.
 - Shows a badge with the feed count on the toolbar icon when the current page
   has feeds.
-- The popup lists every detected feed with a **Subscribe in Papr** button.
+- The popup lists every detected feed with a **Subscribe in ZenRssReader** button.
 
-## How "Subscribe in Papr" works
+## How "Subscribe in ZenRssReader" works
 
 The button opens a custom-scheme deep link:
 
 ```
-papr://subscribe?url=<url-encoded feed URL>
+zenrssreader://subscribe?url=<url-encoded feed URL>
 ```
 
-The Papr desktop app registers the `papr://` scheme. Opening the link focuses
-the Papr window and opens its **Add feed** dialog prefilled with the feed URL.
-Papr must be installed and have been launched at least once for the OS to know
+The ZenRssReader desktop app registers the `zenrssreader://` scheme. Opening the link focuses
+the ZenRssReader window and opens its **Add feed** dialog prefilled with the feed URL.
+ZenRssReader must be installed and have been launched at least once for the OS to know
 about the scheme.
 
 ## Permissions
@@ -44,7 +44,7 @@ permission list empty means the browser shows no install-time warning.
 1. Open `chrome://extensions`.
 2. Enable **Developer mode** (top-right toggle).
 3. Click **Load unpacked** and select this `extension/` directory.
-4. The Papr icon appears in the toolbar. Visit a blog or a YouTube channel and
+4. The ZenRssReader icon appears in the toolbar. Visit a blog or a YouTube channel and
    click it.
 
 ### Firefox
@@ -71,7 +71,7 @@ extension/
 
 `src/detect.js` is a pure, environment-agnostic module (no `import`/`export`,
 no DOM access). It exposes its API both as a CommonJS module (for Node) and as
-`globalThis.PaprDetect` (for the extension). Its unit tests live in the repo
+`globalThis.ZenRssReaderDetect` (for the extension). Its unit tests live in the repo
 root and run with vitest:
 
 ```

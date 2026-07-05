@@ -48,7 +48,7 @@
   },
   "addFeed": {
     "title": "フィードを追加",
-    "hint": "フィードURL、ウェブサイトURL、または YouTube / Reddit / Mastodon のリンクを貼り付けてください — Papr が自動で処理します。",
+    "hint": "フィードURL、ウェブサイトURL、または YouTube / Reddit / Mastodon のリンクを貼り付けてください — ZenRssReader が自動で処理します。",
     "urlLabel": "フィードまたはサイトの URL",
     "folderLabel": "フォルダ",
     "noFolder": "フォルダなし",
@@ -243,7 +243,7 @@
       "markReadOnScrollDesc": "長いリストをすばやく流し読みするのに便利です",
       "startup": "起動",
       "launchAtLogin": "ログイン時に起動",
-      "launchAtLoginDesc": "システムへのログイン後、Papr をバックグラウンドで自動起動します",
+      "launchAtLoginDesc": "システムへのログイン後、ZenRssReader をバックグラウンドで自動起動します",
       "startupView": "起動時に開く",
       "startupViewDesc": "次回アプリを開いたときに既定で表示するビュー",
       "startupAll": "すべての記事",

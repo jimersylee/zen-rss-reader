@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <!-- Papr app icon — the whole tile is one sheet of paper with a folded top-right corner -->
+  <!-- ZenRssReader app icon — the whole tile is one sheet of paper with a folded top-right corner -->
   <!-- paper: rounded outer corners, top-right corner replaced by the fold -->
   <path d="M0 224 A224 224 0 0 1 224 0 L768 0 L1024 256 L1024 800 A224 224 0 0 1 800 1024 L224 1024 A224 224 0 0 1 0 800 Z" fill="#f4eee1"/>
   <!-- folded corner (paper underside) -->

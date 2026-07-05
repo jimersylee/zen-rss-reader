@@ -8,7 +8,7 @@ use reqwest::{Client, StatusCode};
 use rusqlite::Connection;
 use std::time::Duration;
 
-pub const USER_AGENT: &str = "Papr/0.1 (+https://github.com/papr-reader)";
+pub const USER_AGENT: &str = "ZenRssReader/0.1 (+https://github.com/zenrssreader-reader)";
 
 /// Hard cap on a fetched body. Feeds and article pages are text — a few
 /// hundred KB at most — so 16 MiB is generous while still stopping a

@@ -6,7 +6,7 @@
 //! render it however they like.
 //!
 //! The desktop app wraps [`refresh_core`] with a Tauri progress channel,
-//! notifications, FreshRSS sync and tray updates (see `papr_lib::scheduler`);
+//! notifications, FreshRSS sync and tray updates (see `zen_rss_reader_lib::scheduler`);
 //! the agent CLI drives it directly, forwarding events to stderr.
 
 use crate::db;

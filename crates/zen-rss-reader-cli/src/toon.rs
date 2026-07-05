@@ -74,8 +74,8 @@ mod tests {
         let mut d = Doc::new();
         d.set("unread", 206)
             .set("starred", 17)
-            .set("db", "~/x/papr.db");
-        assert_eq!(d.into_toon(), "unread: 206\nstarred: 17\ndb: ~/x/papr.db\n");
+            .set("db", "~/x/zenrssreader.db");
+        assert_eq!(d.into_toon(), "unread: 206\nstarred: 17\ndb: ~/x/zenrssreader.db\n");
     }
 
     #[test]
@@ -122,10 +122,10 @@ mod tests {
 
         let mut with = Doc::new();
         with.set("count", 1)
-            .help(vec!["Run `papr read <id>`".to_string()]);
+            .help(vec!["Run `zenrssreader read <id>`".to_string()]);
         assert_eq!(
             with.into_toon(),
-            "count: 1\nhelp[1]: Run `papr read <id>`\n"
+            "count: 1\nhelp[1]: Run `zenrssreader read <id>`\n"
         );
     }
 

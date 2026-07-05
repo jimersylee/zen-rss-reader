@@ -1,7 +1,7 @@
-//! papr-core — the UI-free heart of Papr.
+//! zen-rss-reader-core — the UI-free heart of ZenRssReader.
 //!
 //! Everything here is free of any Tauri/desktop dependency so it can be linked
-//! by both the desktop app (`papr_lib`) and the headless agent CLI (`papr-cli`).
+//! by both the desktop app (`zen_rss_reader_lib`) and the headless agent CLI (`zen-rss-reader-cli`).
 //! It owns the SQLite schema + migrations, all typed data-access functions,
 //! feed fetching/parsing/discovery, and HTML sanitization.
 //!

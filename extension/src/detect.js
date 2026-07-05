@@ -1,11 +1,11 @@
 /**
- * Feed detection for the Papr browser extension.
+ * Feed detection for the ZenRssReader browser extension.
  *
  * This module is deliberately pure and dependency-free so it works in two
  * environments with no build step:
  *   1. as a CommonJS module imported by the Node/vitest test suite, and
  *   2. as a plain classic script loaded by the extension's content script,
- *      where it hangs its API off `globalThis.PaprDetect`.
+ *      where it hangs its API off `globalThis.ZenRssReaderDetect`.
  *
  * It contains no `import`/`export` keywords (which would be a syntax error in
  * a classic browser script) — the dual-mode wiring at the bottom uses a
@@ -24,7 +24,7 @@
   const api = factory();
   // Classic-script / extension use: expose a global.
   if (typeof globalThis !== "undefined") {
-    globalThis.PaprDetect = api;
+    globalThis.ZenRssReaderDetect = api;
   }
   // Node / vitest use: CommonJS export.
   if (typeof module !== "undefined" && module.exports) {
@@ -234,9 +234,9 @@
     return results;
   }
 
-  /** Build a `papr://subscribe?url=…` deep link for a detected feed URL. */
+  /** Build a `zenrssreader://subscribe?url=…` deep link for a detected feed URL. */
   function buildSubscribeLink(feedUrl) {
-    return "papr://subscribe?url=" + encodeURIComponent(feedUrl);
+    return "zenrssreader://subscribe?url=" + encodeURIComponent(feedUrl);
   }
 
   return {
