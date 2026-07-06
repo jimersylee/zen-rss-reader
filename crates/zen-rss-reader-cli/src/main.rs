@@ -10,15 +10,15 @@ mod setup;
 mod toon;
 
 use clap::{Parser, Subcommand};
-use zen_rss_reader_core::db;
-use zen_rss_reader_core::ingestion::{fetch, parse, refresh};
-use zen_rss_reader_core::models::ArticleQuery;
-use zen_rss_reader_core::sync;
 use rusqlite::Connection;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use toon::Doc;
+use zen_rss_reader_core::db;
+use zen_rss_reader_core::ingestion::{fetch, parse, refresh};
+use zen_rss_reader_core::models::ArticleQuery;
+use zen_rss_reader_core::sync;
 
 const APP_IDENTIFIER: &str = "com.jimersylee.zenrssreader";
 const DESCRIPTION: &str = "Read, search and triage your ZenRssReader RSS feeds from the shell.";
@@ -647,7 +647,9 @@ fn cmd_home(path: &Path) -> Result<String, AxiError> {
     // The home view shows only the most recent unread; if more exist, tell the
     // agent how to see the rest instead of leaving the count ambiguous.
     if !inbox_clear && unread > recent.len() as i64 {
-        help.push(format!("Run `zenrssreader list` to see all {unread} unread"));
+        help.push(format!(
+            "Run `zenrssreader list` to see all {unread} unread"
+        ));
     }
     help.extend([
         "Run `zenrssreader read <id>` to read an article's full text".into(),
@@ -668,7 +670,7 @@ fn cmd_feeds(path: &Path) -> Result<String, AxiError> {
         let mut d = Doc::new();
         d.set("feeds", json!([]));
         d.help(vec![
-            "Run `zenrssreader subscribe <url>` to add your first feed".into()
+            "Run `zenrssreader subscribe <url>` to add your first feed".into(),
         ]);
         return Ok(d.into_toon());
     }
@@ -853,7 +855,7 @@ fn cmd_read(path: &Path, args: ReadArgs) -> Result<String, AxiError> {
     d.set("articles", Value::Array(articles));
     if any_truncated && !args.full {
         d.help(vec![
-            "Run `zenrssreader read <id> --full` to see the complete text".into()
+            "Run `zenrssreader read <id> --full` to see the complete text".into(),
         ]);
     }
     Ok(d.into_toon())
@@ -922,7 +924,7 @@ fn cmd_tags(path: &Path) -> Result<String, AxiError> {
     d.set("tags", Value::Array(rows));
     if !tags.is_empty() {
         d.help(vec![
-            "Run `zenrssreader list --tag <id>` to list a tag's articles".into()
+            "Run `zenrssreader list --tag <id>` to list a tag's articles".into(),
         ]);
     }
     Ok(d.into_toon())
@@ -969,8 +971,11 @@ async fn cmd_subscribe(path: &Path, url: &str, folder: Option<i64>) -> Result<St
         return Ok(d.into_toon());
     }
 
-    let source_type =
-        parse::refine_source_type(zen_rss_reader_core::models::SourceType::Rss, &parsed, &feed_url);
+    let source_type = parse::refine_source_type(
+        zen_rss_reader_core::models::SourceType::Rss,
+        &parsed,
+        &feed_url,
+    );
     let title = parsed.title.clone().unwrap_or_else(|| feed_url.clone());
     let feed_id = db::insert_feed(
         &conn,
@@ -1158,7 +1163,11 @@ fn cmd_unsubscribe(path: &Path, id: i64, yes: bool) -> Result<String, AxiError> 
     let Some(title) = feed_title(&conn, id) else {
         return ok_line(format!("feed: #{id} not found (no-op)"));
     };
-    require_yes(yes, "unsubscribe", &format!("zenrssreader unsubscribe {id}"))?;
+    require_yes(
+        yes,
+        "unsubscribe",
+        &format!("zenrssreader unsubscribe {id}"),
+    )?;
     db::delete_feed(&conn, id).map_err(db_err)?;
     ok_line(format!("unsubscribed: #{id} {title}"))
 }
@@ -1195,7 +1204,9 @@ async fn cmd_extract(path: &Path, id: i64) -> Result<String, AxiError> {
         .map_err(|e| AxiError::runtime(format!("extraction failed: {e}")))?;
     let image = zen_rss_reader_core::extraction::lead_image(&html, &final_url);
     db::set_extracted_html(&conn, id, &cleaned, image.as_deref()).map_err(db_err)?;
-    let chars = zen_rss_reader_core::sanitize::html_to_text(&cleaned).chars().count();
+    let chars = zen_rss_reader_core::sanitize::html_to_text(&cleaned)
+        .chars()
+        .count();
     let mut d = Doc::new();
     d.set("extracted", json!({ "id": id, "chars": chars }));
     d.help(vec![format!(
@@ -1237,7 +1248,11 @@ fn cmd_folder(path: &Path, cmd: FolderCmd) -> Result<String, AxiError> {
             ok_line(format!("folder: #{id} renamed to {name}"))
         }
         FolderCmd::Delete { id, yes } => {
-            require_yes(yes, "folder delete", &format!("zenrssreader folder delete {id}"))?;
+            require_yes(
+                yes,
+                "folder delete",
+                &format!("zenrssreader folder delete {id}"),
+            )?;
             db::delete_folder(&conn, id).map_err(db_err)?;
             ok_line(format!("folder: #{id} deleted"))
         }
@@ -1345,7 +1360,11 @@ fn cmd_rule(path: &Path, cmd: RuleCmd) -> Result<String, AxiError> {
             ok_line(format!("rule: #{id} {name} ({field} ~ {query} → {action})"))
         }
         RuleCmd::Delete { id, yes } => {
-            require_yes(yes, "rule delete", &format!("zenrssreader rule delete {id}"))?;
+            require_yes(
+                yes,
+                "rule delete",
+                &format!("zenrssreader rule delete {id}"),
+            )?;
             db::delete_rule(&conn, id).map_err(db_err)?;
             ok_line(format!("rule: #{id} deleted"))
         }
@@ -1557,7 +1576,9 @@ fn cmd_opml(path: &Path, cmd: OpmlCmd) -> Result<String, AxiError> {
             let mut d = Doc::new();
             d.set("import", json!({ "added": added, "skipped": skipped }));
             if added > 0 {
-                d.help(vec!["Run `zenrssreader refresh` to fetch the imported feeds".into()]);
+                d.help(vec![
+                    "Run `zenrssreader refresh` to fetch the imported feeds".into(),
+                ]);
             }
             Ok(d.into_toon())
         }
@@ -1637,10 +1658,17 @@ fn cmd_admin(path: &Path, cmd: AdminCmd) -> Result<String, AxiError> {
             if days < 0 {
                 return Err(AxiError::usage(
                     format!("cleanup window must be >= 0 days, got {days}"),
-                    vec!["Run `zenrssreader admin cleanup <days>` with a non-negative day count".into()],
+                    vec![
+                        "Run `zenrssreader admin cleanup <days>` with a non-negative day count"
+                            .into(),
+                    ],
                 ));
             }
-            require_yes(yes, "cleanup", &format!("zenrssreader admin cleanup {days}"))?;
+            require_yes(
+                yes,
+                "cleanup",
+                &format!("zenrssreader admin cleanup {days}"),
+            )?;
             let n = db::cleanup_old_articles(&conn, days).map_err(db_err)?;
             ok_line(format!(
                 "cleanup: removed {n} article(s) older than {days} days"
@@ -1714,7 +1742,10 @@ fn parse_fields(spec: &str) -> Result<Vec<ExtraField>, AxiError> {
 /// next action without a follow-up call — plus any `extra` columns requested
 /// via `--fields`. Returns a JSON array the encoder lays out as a tabular TOON
 /// array (uniform keys across rows keep it tabular).
-fn article_rows(rows: &[zen_rss_reader_core::models::ArticleSummary], extra: &[ExtraField]) -> Value {
+fn article_rows(
+    rows: &[zen_rss_reader_core::models::ArticleSummary],
+    extra: &[ExtraField],
+) -> Value {
     Value::Array(
         rows.iter()
             .map(|a| {

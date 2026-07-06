@@ -75,7 +75,10 @@ mod tests {
         d.set("unread", 206)
             .set("starred", 17)
             .set("db", "~/x/zenrssreader.db");
-        assert_eq!(d.into_toon(), "unread: 206\nstarred: 17\ndb: ~/x/zenrssreader.db\n");
+        assert_eq!(
+            d.into_toon(),
+            "unread: 206\nstarred: 17\ndb: ~/x/zenrssreader.db\n"
+        );
     }
 
     #[test]
