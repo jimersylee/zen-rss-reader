@@ -793,7 +793,7 @@ export default function Reader({ onToast }: Props) {
             showTranslation ? setShowTranslation(false) : run(targetLang, engine)
           }
         >
-          <Icon name="globe" size={16} />
+          <Icon name="icon-translate" size={16} />
         </button>
         <HighlightLayer
           // Keyed by article id so the export menu / popovers reset cleanly
@@ -859,7 +859,10 @@ export default function Reader({ onToast }: Props) {
               // data-zenrssreader-src holds the real address when the image was
               // recovered through the backend and src is an inline data: URL.
               imageUrl:
-                img?.dataset.zenrssreaderSrc || img?.currentSrc || img?.getAttribute("src") || undefined,
+                img?.dataset.zenrssreaderSrc ||
+                img?.currentSrc ||
+                img?.getAttribute("src") ||
+                undefined,
               selection: selection || undefined,
             });
           }}

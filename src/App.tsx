@@ -11,7 +11,7 @@ import { useArticleActions } from "./hooks/articleActions";
 import { readCurrentItems } from "./lib/currentList";
 import { checkForUpdates } from "./lib/updater";
 import { useToasts, toast as toastApi, reportError } from "./toast";
-import type { ArticleQuery, ArticleSummary, Feed } from "./types";
+import type { ArticleDetail, ArticleQuery, ArticleSummary, Feed } from "./types";
 import Sidebar from "./components/Sidebar";
 import ArticleList from "./components/ArticleList";
 import Reader from "./components/Reader";
@@ -394,6 +394,12 @@ export default function App() {
         doRefresh();
         return;
       }
+      const selectedArticleUrl = () => {
+        const selectedArticleId = useUi.getState().selectedArticleId;
+        const fromList = readCurrentItems(qc).find((a) => a.id === selectedArticleId)?.url;
+        return fromList ?? qc.getQueryData<ArticleDetail>(["article", selectedArticleId])?.url;
+      };
+
       if (mod && e.key.toLowerCase() === "o") {
         if (
           document.querySelector(
@@ -401,11 +407,10 @@ export default function App() {
           )
         )
           return;
-        const st = useUi.getState();
-        const sel = readCurrentItems(qc).find((a) => a.id === st.selectedArticleId);
-        if (sel?.url) {
+        const url = selectedArticleUrl();
+        if (url) {
           e.preventDefault();
-          openUrl(sel.url).catch(() => {});
+          openUrl(url).catch(() => {});
         }
         return;
       }
@@ -457,9 +462,11 @@ export default function App() {
           go(-1);
           break;
         case "o":
-          if (sel?.url) {
+          {
+            const url = selectedArticleUrl();
+            if (!url) break;
             e.preventDefault();
-            openUrl(sel.url).catch(() => {});
+            openUrl(url).catch(() => {});
           }
           break;
         case "s":
