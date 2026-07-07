@@ -195,7 +195,7 @@ pub fn run() {
             .plugin(tauri_plugin_process::init());
     }
 
-    builder
+    let app = builder
         .setup(|app| {
             attach_log_handle(app.handle().clone());
             // ── Database ──────────────────────────────────────────────
@@ -341,6 +341,14 @@ pub fn run() {
             });
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if window.label() == "main" {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             commands::list_folders,
             commands::create_folder,
@@ -415,6 +423,17 @@ pub fn run() {
             debug_logs,
             open_log_dir,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running ZenRssReader");
+        .build(tauri::generate_context!())
+        .expect("error while building ZenRssReader");
+
+    app.run(|app, event| {
+        #[cfg(target_os = "macos")]
+        if let tauri::RunEvent::Reopen {
+            has_visible_windows: false,
+            ..
+        } = event
+        {
+            tray::show_window(app);
+        }
+    });
 }

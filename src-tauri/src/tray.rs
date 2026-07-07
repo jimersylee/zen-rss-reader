@@ -165,9 +165,13 @@ fn build_menu(
     )
 }
 
-fn show_window(app: &AppHandle) {
+pub fn show_window(app: &AppHandle) {
+    #[cfg(target_os = "macos")]
+    let _ = app.show();
+
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
+        let _ = w.unminimize();
         let _ = w.set_focus();
     }
 }
