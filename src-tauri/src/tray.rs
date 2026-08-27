@@ -242,7 +242,7 @@ pub async fn refresh(app: &AppHandle) {
                 .flatten()
                 .unwrap_or_default(),
             db::count_unread(&conn).unwrap_or(0),
-            db::latest_fetch(&conn).ok().flatten(),
+            db::latest_refresh(&conn).ok().flatten(),
         )
     };
     // Tray mutations touch AppKit, which on macOS must happen on the main

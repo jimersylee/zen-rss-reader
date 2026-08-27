@@ -2306,13 +2306,24 @@ pub fn count_feed_unread(conn: &Connection, feed_id: i64) -> AppResult<i64> {
     )?)
 }
 
-/// Timestamp of the most recent successful feed fetch, if any.
-pub fn latest_fetch(conn: &Connection) -> AppResult<Option<String>> {
-    Ok(
-        conn.query_row("SELECT MAX(last_fetched_at) FROM feeds", [], |r| {
-            r.get::<_, Option<String>>(0)
-        })?,
-    )
+/// Record a completed refresh cycle for status surfaces such as the tray menu.
+pub fn record_refresh(conn: &Connection) -> AppResult<()> {
+    conn.execute(
+        "INSERT INTO settings(key, value) VALUES ('last_refresh_at', datetime('now'))
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        [],
+    )?;
+    Ok(())
+}
+
+/// Timestamp of the most recent completed refresh cycle, falling back to the
+/// per-feed fetch state recorded before this setting was introduced.
+pub fn latest_refresh(conn: &Connection) -> AppResult<Option<String>> {
+    Ok(get_setting(conn, "last_refresh_at")?.or(conn.query_row(
+        "SELECT MAX(last_fetched_at) FROM feeds",
+        [],
+        |r| r.get::<_, Option<String>>(0),
+    )?))
 }
 
 // ─────────────────────────── sync ───────────────────────────
@@ -2663,6 +2674,26 @@ mod tests {
         // "never refreshed".
         touch_feed(&conn, feed_id).unwrap();
         assert!(feed_last_fetched(&conn, feed_id).unwrap().is_some());
+    }
+
+    #[test]
+    fn latest_refresh_uses_the_completed_refresh_cycle() {
+        let (conn, _) = test_db();
+        conn.execute(
+            "UPDATE feeds SET last_fetched_at = '2026-07-16 05:47:32'",
+            [],
+        )
+        .unwrap();
+        assert_eq!(
+            latest_refresh(&conn).unwrap().as_deref(),
+            Some("2026-07-16 05:47:32")
+        );
+
+        record_refresh(&conn).unwrap();
+        assert_ne!(
+            latest_refresh(&conn).unwrap().as_deref(),
+            Some("2026-07-16 05:47:32")
+        );
     }
 
     #[test]

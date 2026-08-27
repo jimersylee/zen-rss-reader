@@ -218,7 +218,7 @@ pub fn run() {
                 .flatten()
                 .unwrap_or_default();
             let unread = db::count_unread(&conn).unwrap_or(0);
-            let latest_fetch = db::latest_fetch(&conn).ok().flatten();
+            let latest_refresh = db::latest_refresh(&conn).ok().flatten();
             // The persisted UI theme, mirrored from the frontend store. Used
             // just below to paint the native window in the matching colour
             // before the webview's first frame.
@@ -299,7 +299,7 @@ pub fn run() {
             }
 
             // ── Menu-bar tray (keeps the app resident for refreshes) ──
-            tray::build(app.handle(), &lang, unread, latest_fetch.as_deref())?;
+            tray::build(app.handle(), &lang, unread, latest_refresh.as_deref())?;
 
             // ── Background refresh scheduler ──────────────────────────
             scheduler::spawn_scheduler(app.handle().clone());

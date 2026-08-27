@@ -61,7 +61,11 @@ pub async fn refresh_all(
             let _ = p.send(RefreshProgress::Started { total: 0 });
         }
         let synced = match sync::sync_now(&state.db, &client).await {
-            Ok(n) => n,
+            Ok(n) => {
+                let conn = state.db.lock().await;
+                let _ = db::record_refresh(&conn);
+                n
+            }
             Err(e) => {
                 log::warn!("sync failed: {e}");
                 0
@@ -89,6 +93,11 @@ pub async fn refresh_all(
     // heavier tail (sync, notifications, tray) so an idle tick is genuinely idle.
     if !summary.ran {
         return Ok(0);
+    }
+
+    {
+        let conn = state.db.lock().await;
+        let _ = db::record_refresh(&conn);
     }
 
     let total_new = summary.new_articles;
