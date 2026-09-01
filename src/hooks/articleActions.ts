@@ -6,9 +6,7 @@ import * as api from "../api";
 import { errorText } from "../lib/errors";
 import type { ArticleSummary } from "../types";
 
-type Patch = Partial<
-  Pick<ArticleSummary, "isRead" | "isStarred" | "readLater">
->;
+type Patch = Partial<Pick<ArticleSummary, "isRead" | "isStarred" | "readLater">>;
 
 /**
  * Shared article mutations. `onError` (when supplied) is called with a
@@ -32,15 +30,11 @@ export function useArticleActions(onError?: (msg: string) => void) {
     });
     // Flat result arrays: hybrid search and the command-palette search.
     const patchFlat = (old: any) =>
-      Array.isArray(old)
-        ? old.map((x: ArticleSummary) => (x.id === id ? { ...x, ...p } : x))
-        : old;
+      Array.isArray(old) ? old.map((x: ArticleSummary) => (x.id === id ? { ...x, ...p } : x)) : old;
     qc.setQueriesData({ queryKey: ["search"] }, patchFlat);
     qc.setQueriesData({ queryKey: ["cp-search"] }, patchFlat);
     // The open article detail.
-    qc.setQueryData(["article", id], (old: any) =>
-      old ? { ...old, ...p } : old,
-    );
+    qc.setQueryData(["article", id], (old: any) => (old ? { ...old, ...p } : old));
   };
 
   const refreshLists = () => {
@@ -92,29 +86,32 @@ export function useArticleActions(onError?: (msg: string) => void) {
     refreshAfterBulk,
     refreshAfterFetch,
     async setRead(id: number, read: boolean) {
+      patch(id, { isRead: read });
       try {
         await api.markRead(id, read);
-        patch(id, { isRead: read });
         refreshLists();
       } catch (e) {
+        patch(id, { isRead: !read });
         onError?.(errorText(e));
       }
     },
     async setStarred(id: number, starred: boolean) {
+      patch(id, { isStarred: starred });
       try {
         await api.markStarred(id, starred);
-        patch(id, { isStarred: starred });
         refreshLists();
       } catch (e) {
+        patch(id, { isStarred: !starred });
         onError?.(errorText(e));
       }
     },
     async setReadLater(id: number, value: boolean) {
+      patch(id, { readLater: value });
       try {
         await api.markReadLater(id, value);
-        patch(id, { readLater: value });
         refreshLists();
       } catch (e) {
+        patch(id, { readLater: !value });
         onError?.(errorText(e));
       }
     },

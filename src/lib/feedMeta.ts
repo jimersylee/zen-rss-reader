@@ -11,9 +11,22 @@ function dateLocale(): string {
 }
 
 const PALETTE = [
-  "#7c5cff", "#2c8a3e", "#0a6bd4", "#d23a8b", "#a8501f", "#ff6600",
-  "#c0392b", "#d05050", "#3a4cb8", "#4a4a4a", "#1d8a8a", "#b85c00",
-  "#1c1c1c", "#5200ff", "#1a73e8", "#0f9d8c",
+  "#7c5cff",
+  "#2c8a3e",
+  "#0a6bd4",
+  "#d23a8b",
+  "#a8501f",
+  "#ff6600",
+  "#c0392b",
+  "#d05050",
+  "#3a4cb8",
+  "#4a4a4a",
+  "#1d8a8a",
+  "#b85c00",
+  "#1c1c1c",
+  "#5200ff",
+  "#1a73e8",
+  "#0f9d8c",
 ];
 
 /** Stable accent color for a feed, hashed off its id so it never shifts. */

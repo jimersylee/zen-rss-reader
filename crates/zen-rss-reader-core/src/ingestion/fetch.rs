@@ -3,14 +3,12 @@
 
 use crate::db;
 use crate::error::{AppError, AppResult};
-use reqwest::header::{
-    CONTENT_TYPE, ETAG, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED,
-};
+use reqwest::header::{CONTENT_TYPE, ETAG, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED};
 use reqwest::{Client, StatusCode};
 use rusqlite::Connection;
 use std::time::Duration;
 
-pub const USER_AGENT: &str = "Papr/0.1 (+https://github.com/papr-reader)";
+pub const USER_AGENT: &str = "ZenRssReader/0.1 (+https://github.com/zenrssreader-reader)";
 
 /// Hard cap on a fetched body. Feeds and article pages are text — a few
 /// hundred KB at most — so 16 MiB is generous while still stopping a
@@ -21,7 +19,10 @@ const MAX_BODY_BYTES: usize = 16 * 1024 * 1024;
 /// chunks so an unbounded (or lying-`Content-Length`) response can't first be
 /// buffered whole.
 async fn read_capped(mut resp: reqwest::Response) -> AppResult<Vec<u8>> {
-    if resp.content_length().is_some_and(|n| n > MAX_BODY_BYTES as u64) {
+    if resp
+        .content_length()
+        .is_some_and(|n| n > MAX_BODY_BYTES as u64)
+    {
         return Err(AppError::code("responseTooLarge"));
     }
     let mut buf: Vec<u8> = Vec::new();

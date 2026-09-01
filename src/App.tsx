@@ -11,7 +11,7 @@ import { useArticleActions } from "./hooks/articleActions";
 import { readCurrentItems } from "./lib/currentList";
 import { checkForUpdates } from "./lib/updater";
 import { useToasts, toast as toastApi, reportError } from "./toast";
-import type { ArticleQuery, ArticleSummary, Feed } from "./types";
+import type { ArticleDetail, ArticleQuery, ArticleSummary, Feed } from "./types";
 import Sidebar from "./components/Sidebar";
 import ArticleList from "./components/ArticleList";
 import Reader from "./components/Reader";
@@ -19,6 +19,7 @@ import CommandPalette, { type CommandAction } from "./components/CommandPalette"
 import SettingsDialog from "./components/SettingsDialog";
 import AddFeedDialog from "./components/AddFeedDialog";
 import ExploreDialog from "./components/ExploreDialog";
+import DebugLogPanel from "./components/DebugLogPanel";
 import PromptDialog from "./components/PromptDialog";
 import PlayerBar from "./components/PlayerBar";
 import ResizeHandle from "./components/ResizeHandle";
@@ -29,8 +30,12 @@ import { PANEL_BOUNDS } from "./store";
 // fixed brand mark, not a user preference, so it lives here rather than in
 // Settings. (Ported from the design prototype's ACCENTS.clay.)
 const ACCENT = {
-  accent: "oklch(0.60 0.13 38)", soft: "oklch(0.94 0.04 50)", ink: "oklch(0.42 0.10 38)",
-  dAccent: "oklch(0.74 0.13 45)", dSoft: "oklch(0.32 0.06 40)", dInk: "oklch(0.80 0.10 45)",
+  accent: "oklch(0.60 0.13 38)",
+  soft: "oklch(0.94 0.04 50)",
+  ink: "oklch(0.42 0.10 38)",
+  dAccent: "oklch(0.74 0.13 45)",
+  dSoft: "oklch(0.32 0.06 40)",
+  dInk: "oklch(0.80 0.10 45)",
 };
 
 // Native window backing for the dark theme. The webview is made non-opaque in
@@ -65,10 +70,11 @@ export default function App() {
     open: false,
   });
   const [addFeed, setAddFeed] = useState(false);
-  // Feed URL handed over by a `papr://subscribe` deep link (browser extension).
+  // Feed URL handed over by a `zenrssreader://subscribe` deep link (browser extension).
   const [addFeedUrl, setAddFeedUrl] = useState<string | undefined>(undefined);
   // The standalone Explore (curated-directory marketplace) dialog.
   const [explore, setExplore] = useState(false);
+  const [debugLogs, setDebugLogs] = useState(false);
   const [newFolder, setNewFolder] = useState(false);
 
   // Mirror "any covering modal is open" into the store. The reader's
@@ -77,8 +83,8 @@ export default function App() {
   // reader watches this flag and tears the view down while a modal is up.
   const setModalOpen = useUi((s) => s.setModalOpen);
   useEffect(() => {
-    setModalOpen(cpOpen || settings.open || addFeed || explore || newFolder);
-  }, [cpOpen, settings.open, addFeed, explore, newFolder, setModalOpen]);
+    setModalOpen(cpOpen || settings.open || addFeed || explore || debugLogs || newFolder);
+  }, [cpOpen, settings.open, addFeed, explore, debugLogs, newFolder, setModalOpen]);
 
   // ── apply appearance to the document root ──
   useEffect(() => {
@@ -97,8 +103,12 @@ export default function App() {
     // webview is opaque, so setBackgroundColor here mainly covers their own
     // resize/overscroll; harmless on macOS where it's the NSWindow colour.)
     const backing = dark ? DARK_BACKING : "#FBF9F3";
-    getCurrentWindow().setBackgroundColor(backing).catch(() => {});
-    getCurrentWebview().setBackgroundColor(backing).catch(() => {});
+    getCurrentWindow()
+      .setBackgroundColor(backing)
+      .catch(() => {});
+    getCurrentWebview()
+      .setBackgroundColor(backing)
+      .catch(() => {});
   }, [theme, density]);
 
   // ── dismiss the boot splash once the app shell has mounted ──
@@ -128,9 +138,7 @@ export default function App() {
       readLater: t("smart.readLater"),
     };
     if (startupView !== "last" && labels[startupView]) {
-      useUi
-        .getState()
-        .select({ kind: startupView } as ArticleQuery, labels[startupView]);
+      useUi.getState().select({ kind: startupView } as ArticleQuery, labels[startupView]);
     } else if (startupView === "last") {
       // Restore the view that was open when the app last closed.
       try {
@@ -182,10 +190,7 @@ export default function App() {
   const showToast = toastApi.show;
   useEffect(() => {
     if (!activeToast) return;
-    const timer = window.setTimeout(
-      () => dismissToast(activeToast.id),
-      activeToast.duration,
-    );
+    const timer = window.setTimeout(() => dismissToast(activeToast.id), activeToast.duration);
     return () => window.clearTimeout(timer);
   }, [activeToast, dismissToast]);
 
@@ -212,7 +217,7 @@ export default function App() {
     };
   }, []);
 
-  // ── papr://subscribe deep links from the browser extension (F6) ──
+  // ── zenrssreader://subscribe deep links from the browser extension (F6) ──
   useEffect(() => {
     const un = listen<string>("deep-link-subscribe", (e) => {
       setAddFeedUrl(e.payload);
@@ -252,32 +257,35 @@ export default function App() {
   // twice under StrictMode, which previously fired the refresh twice in dev.
   // `refreshing` state is kept purely to drive the sidebar spinner.
   const refreshingRef = useRef(false);
-  const doRefresh = useCallback((scope?: { feedId?: number; folderId?: number }) => {
-    if (refreshingRef.current) return;
-    refreshingRef.current = true;
-    setRefreshing(true);
-    showToast(
-      scope?.feedId != null
-        ? t("app.refreshingFeed")
-        : scope?.folderId != null
-          ? t("app.refreshingFolder")
-          : t("app.refreshing"),
-    );
-    api
-      .refreshFeeds(undefined, scope)
-      .then((n) => {
-        // Refresh only the caches a feed fetch can actually change — a bare
-        // `invalidateQueries()` would also refetch unrelated queries (rules,
-        // FreshRSS status, the open feed-discovery search).
-        actions.refreshAfterFetch();
-        showToast(n > 0 ? t("app.foundNew", { count: n }) : t("app.upToDate"));
-      })
-      .catch(reportError)
-      .finally(() => {
-        refreshingRef.current = false;
-        setRefreshing(false);
-      });
-  }, [actions, showToast, t]);
+  const doRefresh = useCallback(
+    (scope?: { feedId?: number; folderId?: number }) => {
+      if (refreshingRef.current) return;
+      refreshingRef.current = true;
+      setRefreshing(true);
+      showToast(
+        scope?.feedId != null
+          ? t("app.refreshingFeed")
+          : scope?.folderId != null
+            ? t("app.refreshingFolder")
+            : t("app.refreshing"),
+      );
+      api
+        .refreshFeeds(undefined, scope)
+        .then((n) => {
+          // Refresh only the caches a feed fetch can actually change — a bare
+          // `invalidateQueries()` would also refetch unrelated queries (rules,
+          // FreshRSS status, the open feed-discovery search).
+          actions.refreshAfterFetch();
+          showToast(n > 0 ? t("app.foundNew", { count: n }) : t("app.upToDate"));
+        })
+        .catch(reportError)
+        .finally(() => {
+          refreshingRef.current = false;
+          setRefreshing(false);
+        });
+    },
+    [actions, showToast, t],
+  );
 
   const markAllRead = useCallback(async () => {
     try {
@@ -294,7 +302,9 @@ export default function App() {
   // ── command-palette actions ──
   const handleCommand = (action: CommandAction) => {
     switch (action) {
-      case "mark-all-read": markAllRead(); break;
+      case "mark-all-read":
+        markAllRead();
+        break;
       case "toggle-theme":
         useUi.getState().setTheme(theme === "light" ? "dark" : "light");
         break;
@@ -305,11 +315,21 @@ export default function App() {
         if (useUi.getState().selectedArticleId != null)
           useUi.getState().setAiOpen(!useUi.getState().aiOpen);
         break;
-      case "refresh": doRefresh(); break;
-      case "add-feed": setAddFeed(true); break;
-      case "new-folder": setNewFolder(true); break;
-      case "opml": openSettings("subscriptions"); break;
-      case "open-settings": openSettings(); break;
+      case "refresh":
+        doRefresh();
+        break;
+      case "add-feed":
+        setAddFeed(true);
+        break;
+      case "new-folder":
+        setNewFolder(true);
+        break;
+      case "opml":
+        openSettings("subscriptions");
+        break;
+      case "open-settings":
+        openSettings();
+        break;
     }
   };
 
@@ -349,7 +369,7 @@ export default function App() {
         if (
           !cpOpen &&
           document.querySelector(
-            ".settings-backdrop, .modal-backdrop, .tag-picker, .hl-popover",
+            ".settings-backdrop, .modal-backdrop, .debug-log-backdrop, .tag-picker, .hl-popover",
           )
         )
           return;
@@ -362,7 +382,7 @@ export default function App() {
         if (
           !settingsOpen &&
           document.querySelector(
-            ".cp-backdrop, .modal-backdrop, .tag-picker, .hl-popover",
+            ".cp-backdrop, .modal-backdrop, .debug-log-backdrop, .tag-picker, .hl-popover",
           )
         )
           return;
@@ -372,6 +392,31 @@ export default function App() {
       if (mod && e.key.toLowerCase() === "r") {
         e.preventDefault();
         doRefresh();
+        return;
+      }
+      const selectedArticleUrl = () => {
+        const selectedArticleId = useUi.getState().selectedArticleId;
+        const fromList = readCurrentItems(qc).find((a) => a.id === selectedArticleId)?.url;
+        return fromList ?? qc.getQueryData<ArticleDetail>(["article", selectedArticleId])?.url;
+      };
+
+      if (mod && e.key.toLowerCase() === "o") {
+        if (
+          document.querySelector(
+            ".cp-backdrop, .settings-backdrop, .modal-backdrop, .debug-log-backdrop, .ctx-menu, .tag-picker, .hl-popover, .hl-toolbar",
+          )
+        )
+          return;
+        const url = selectedArticleUrl();
+        if (url) {
+          e.preventDefault();
+          openUrl(url).catch(() => {});
+        }
+        return;
+      }
+      if (mod && e.shiftKey && e.key.toLowerCase() === "l") {
+        e.preventDefault();
+        setDebugLogs((v) => !v);
         return;
       }
       if (mod) return;
@@ -391,7 +436,7 @@ export default function App() {
       // the AI drawer instead of just the overlay.
       if (
         document.querySelector(
-          ".cp-backdrop, .settings-backdrop, .modal-backdrop, .ctx-menu, .tag-picker, .hl-popover, .hl-toolbar",
+          ".cp-backdrop, .settings-backdrop, .modal-backdrop, .debug-log-backdrop, .ctx-menu, .tag-picker, .hl-popover, .hl-toolbar",
         )
       )
         return;
@@ -408,10 +453,21 @@ export default function App() {
       };
 
       switch (e.key.toLowerCase()) {
-        case "j": e.preventDefault(); go(idx < 0 ? 0 : 1); break;
-        case "k": e.preventDefault(); go(-1); break;
+        case "j":
+          e.preventDefault();
+          go(idx < 0 ? 0 : 1);
+          break;
+        case "k":
+          e.preventDefault();
+          go(-1);
+          break;
         case "o":
-          if (sel?.url) { e.preventDefault(); openUrl(sel.url).catch(() => {}); }
+          {
+            const url = selectedArticleUrl();
+            if (!url) break;
+            e.preventDefault();
+            openUrl(url).catch(() => {});
+          }
           break;
         case "s":
           if (sel) {
@@ -428,7 +484,10 @@ export default function App() {
           }
           break;
         case "u":
-          if (sel) { e.preventDefault(); actions.setRead(sel.id, !sel.isRead); }
+          if (sel) {
+            e.preventDefault();
+            actions.setRead(sel.id, !sel.isRead);
+          }
           break;
         case "i":
           if (st.selectedArticleId != null) {
@@ -436,11 +495,22 @@ export default function App() {
             st.setAiOpen(!st.aiOpen);
           }
           break;
-        case "f": e.preventDefault(); st.setFocusMode(!st.focusMode); break;
-        case "v": e.preventDefault(); st.toggleUnreadOnly(); break;
+        case "f":
+          e.preventDefault();
+          st.setFocusMode(!st.focusMode);
+          break;
+        case "v":
+          e.preventDefault();
+          st.toggleUnreadOnly();
+          break;
         case "a":
-          if (e.shiftKey) { e.preventDefault(); markAllRead(); }
-          else { e.preventDefault(); setAddFeed(true); }
+          if (e.shiftKey) {
+            e.preventDefault();
+            markAllRead();
+          } else {
+            e.preventDefault();
+            setAddFeed(true);
+          }
           break;
         case "d":
           if (e.shiftKey) {
@@ -482,10 +552,7 @@ export default function App() {
               sit at the column boundaries via the `left` offset below. */}
           {!focusMode && (
             <>
-              <div
-                className="resize-handle-slot"
-                style={{ left: "var(--col-sidebar)" }}
-              >
+              <div className="resize-handle-slot" style={{ left: "var(--col-sidebar)" }}>
                 <ResizeHandle
                   width={sidebarWidth}
                   side="right"
@@ -545,12 +612,9 @@ export default function App() {
         />
       )}
 
-      {explore && (
-        <ExploreDialog
-          onClose={() => setExplore(false)}
-          onToast={showToast}
-        />
-      )}
+      {explore && <ExploreDialog onClose={() => setExplore(false)} onToast={showToast} />}
+
+      {debugLogs && <DebugLogPanel onClose={() => setDebugLogs(false)} />}
 
       {newFolder && (
         <PromptDialog

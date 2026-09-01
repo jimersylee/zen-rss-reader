@@ -1,13 +1,16 @@
 {
-  "name": "papr",
+  "name": "zenrssreader",
   "private": true,
   "version": "0.12.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"extension/**/*.{js,html,json,md}\" \"*.{html,ts,json}\" && cargo fmt --all",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"extension/**/*.{js,html,json,md}\" \"*.{html,ts,json}\" && cargo fmt --all -- --check",
     "preview": "vite preview",
     "tauri": "tauri",
+    "build-local-app": "tauri build --bundles dmg --config src-tauri/tauri.local.conf.json -- --profile release-fast",
     "test": "vitest run"
   },
   "dependencies": {
@@ -33,6 +36,7 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
+    "prettier": "^3.9.4",
     "typescript": "~5.8.3",
     "vite": "^7.0.4",
     "vitest": "^3.2.4"

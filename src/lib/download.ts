@@ -13,11 +13,7 @@
 //      dispatched, yielding an empty or failed file. Defer the revoke.
 
 /** Download `content` as a file named `filename` with the given MIME type. */
-export function downloadFile(
-  content: string,
-  filename: string,
-  mimeType: string,
-): void {
+export function downloadFile(content: string, filename: string, mimeType: string): void {
   downloadBlob(new Blob([content], { type: mimeType }), filename);
 }
 

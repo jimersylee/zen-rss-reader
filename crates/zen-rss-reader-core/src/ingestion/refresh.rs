@@ -6,7 +6,7 @@
 //! render it however they like.
 //!
 //! The desktop app wraps [`refresh_core`] with a Tauri progress channel,
-//! notifications, FreshRSS sync and tray updates (see `papr_lib::scheduler`);
+//! notifications, FreshRSS sync and tray updates (see `zen_rss_reader_lib::scheduler`);
 //! the agent CLI drives it directly, forwarding events to stderr.
 
 use crate::db;
@@ -252,9 +252,7 @@ pub async fn refresh_core(
                 // `/@user.rss` → mastodon). A no-op for an already classified feed.
                 let refined = parse::refine_source_type(SourceType::Rss, &parsed, &feed_url);
                 let _ = db::refine_feed_source_type(&conn, feed_id, refined);
-                log::info!(
-                    "refresh: feed #{feed_id} updated: {feed_url}; new_articles={new_here}"
-                );
+                log::info!("refresh: feed #{feed_id} updated: {feed_url}; new_articles={new_here}");
             }
         }
 

@@ -47,9 +47,7 @@ export class ErrorBoundary extends Component<Props, State> {
           padding: 32,
         }}
       >
-        <div style={{ fontSize: 16, fontWeight: 600 }}>
-          {i18n.t("crash.title")}
-        </div>
+        <div style={{ fontSize: 16, fontWeight: 600 }}>{i18n.t("crash.title")}</div>
         <div style={{ fontSize: 13, opacity: 0.7 }}>{i18n.t("crash.body")}</div>
         <button
           onClick={() => location.reload()}

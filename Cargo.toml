@@ -1,5 +1,5 @@
 [workspace]
-members = ["src-tauri", "crates/papr-core", "crates/papr-cli"]
+members = ["src-tauri", "crates/zen-rss-reader-core", "crates/zen-rss-reader-cli"]
 resolver = "2"
 
 # Shared dependency versions, inherited by the member crates via
@@ -43,3 +43,11 @@ codegen-units = 1
 lto = true
 opt-level = "s"
 strip = true
+
+[profile.release-fast]
+inherits = "release"
+codegen-units = 16
+incremental = true
+lto = false
+opt-level = 1
+strip = false

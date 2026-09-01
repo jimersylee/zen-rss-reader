@@ -1,18 +1,18 @@
-//! Papr — a local-first RSS reader. Tauri application entry point: opens the
+//! ZenRssReader — a local-first RSS reader. Tauri application entry point: opens the
 //! database, wires shared state, installs the macOS tray, and starts the
 //! background refresh scheduler.
 
 // The data layer, ingestion building blocks, sanitization and OPML now live in
-// `papr-core` (shared with the agent CLI). Re-export them under their original
+// `zen-rss-reader-core` (shared with the agent CLI). Re-export them under their original
 // crate paths so the rest of the app keeps referring to `crate::db`,
 // `crate::ingestion`, etc. unchanged.
-pub use papr_core::{ai, db, error, extraction, ingestion, models, opml, sanitize, sync};
+pub use zen_rss_reader_core::{ai, db, error, extraction, ingestion, models, opml, sanitize, sync};
 
 mod commands;
 mod notify;
 mod page_view;
 // The tauri-coupled refresh scheduler (progress channels, AppHandle) — built on
-// top of `papr_core::ingestion`. Was `ingestion::scheduler` before the split.
+// top of `zen_rss_reader_core::ingestion`. Was `ingestion::scheduler` before the split.
 mod scheduler;
 mod state;
 mod translate;
@@ -20,14 +20,51 @@ mod tray;
 
 use ingestion::discovery::{self, DeepLink};
 use log::{LevelFilter, Metadata, Record};
+use serde::Serialize;
 use state::AppState;
+use std::collections::VecDeque;
 use std::fs;
-use std::sync::Once;
+use std::io::Write;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, Once, OnceLock};
 use tauri::{Emitter, Manager};
+use tauri_plugin_opener::OpenerExt;
+
+const DEBUG_LOG_LIMIT: usize = 1000;
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DebugLogEntry {
+    id: u64,
+    ts: String,
+    level: String,
+    target: String,
+    message: String,
+}
 
 struct StderrLogger;
 static LOGGER: StderrLogger = StderrLogger;
 static LOGGER_INIT: Once = Once::new();
+static LOG_HANDLE: OnceLock<tauri::AppHandle> = OnceLock::new();
+static LOG_DIR: OnceLock<PathBuf> = OnceLock::new();
+static LOG_BUFFER: OnceLock<Mutex<VecDeque<DebugLogEntry>>> = OnceLock::new();
+static LOG_FILE_LOCK: Mutex<()> = Mutex::new(());
+static LOG_ID: AtomicU64 = AtomicU64::new(1);
+
+fn log_buffer() -> &'static Mutex<VecDeque<DebugLogEntry>> {
+    LOG_BUFFER.get_or_init(|| Mutex::new(VecDeque::with_capacity(DEBUG_LOG_LIMIT)))
+}
+
+fn write_log_file(line: &str) {
+    let Some(dir) = LOG_DIR.get() else { return };
+    let _guard = LOG_FILE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _ = fs::create_dir_all(dir);
+    let path = dir.join(format!("{}.log", chrono::Local::now().format("%Y-%m-%d")));
+    if let Ok(mut file) = fs::OpenOptions::new().create(true).append(true).open(path) {
+        let _ = writeln!(file, "{line}");
+    }
+}
 
 impl log::Log for StderrLogger {
     fn enabled(&self, metadata: &Metadata<'_>) -> bool {
@@ -36,7 +73,27 @@ impl log::Log for StderrLogger {
 
     fn log(&self, record: &Record<'_>) {
         if self.enabled(record.metadata()) {
-            eprintln!("[{}] {}", record.level(), record.args());
+            let ts = chrono::Local::now().format("%H:%M:%S%.3f").to_string();
+            let line = format!("[{} {}] {}", ts, record.level(), record.args());
+            eprintln!("{line}");
+            write_log_file(&line);
+            let entry = DebugLogEntry {
+                id: LOG_ID.fetch_add(1, Ordering::Relaxed),
+                ts,
+                level: record.level().to_string(),
+                target: record.target().to_string(),
+                message: record.args().to_string(),
+            };
+            {
+                let mut logs = log_buffer().lock().unwrap_or_else(|e| e.into_inner());
+                if logs.len() == DEBUG_LOG_LIMIT {
+                    logs.pop_front();
+                }
+                logs.push_back(entry.clone());
+            }
+            if let Some(app) = LOG_HANDLE.get() {
+                let _ = app.emit("debug-log", entry);
+            }
         }
     }
 
@@ -56,8 +113,35 @@ fn init_logger() {
     });
 }
 
-/// Handle every URL delivered through the `papr://` deep-link scheme. A
-/// `papr://subscribe?url=…` link focuses the main window and emits a
+fn attach_log_handle(app: tauri::AppHandle) {
+    if let Ok(dir) = app.path().app_log_dir() {
+        let _ = fs::create_dir_all(&dir);
+        let _ = LOG_DIR.set(dir);
+    }
+    let _ = LOG_HANDLE.set(app);
+}
+
+#[tauri::command]
+fn debug_logs() -> Vec<DebugLogEntry> {
+    log_buffer()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .iter()
+        .cloned()
+        .collect()
+}
+
+#[tauri::command]
+fn open_log_dir(app: tauri::AppHandle) -> Result<(), String> {
+    let dir = app.path().app_log_dir().map_err(|e| e.to_string())?;
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    app.opener()
+        .open_path(dir.to_string_lossy().to_string(), None::<String>)
+        .map_err(|e| e.to_string())
+}
+
+/// Handle every URL delivered through the `zenrssreader://` deep-link scheme. A
+/// `zenrssreader://subscribe?url=…` link focuses the main window and emits a
 /// `deep-link-subscribe` event the frontend listens for to open the
 /// Add-feed dialog prefilled with the feed URL. Unrecognised links are
 /// ignored. Pure parsing lives in [`discovery::parse_deep_link`].
@@ -111,12 +195,13 @@ pub fn run() {
             .plugin(tauri_plugin_process::init());
     }
 
-    builder
+    let app = builder
         .setup(|app| {
+            attach_log_handle(app.handle().clone());
             // ── Database ──────────────────────────────────────────────
             let data_dir = app.path().app_data_dir().expect("resolve app data dir");
             fs::create_dir_all(&data_dir).ok();
-            let db_path = data_dir.join("papr.db");
+            let db_path = data_dir.join("zenrssreader.db");
             let conn = db::open(&db_path).expect("open database");
             // A small pool of read-only connections for UI queries — under WAL
             // they run concurrently with the writer, so the interface stays
@@ -133,7 +218,7 @@ pub fn run() {
                 .flatten()
                 .unwrap_or_default();
             let unread = db::count_unread(&conn).unwrap_or(0);
-            let latest_fetch = db::latest_fetch(&conn).ok().flatten();
+            let latest_refresh = db::latest_refresh(&conn).ok().flatten();
             // The persisted UI theme, mirrored from the frontend store. Used
             // just below to paint the native window in the matching colour
             // before the webview's first frame.
@@ -142,7 +227,7 @@ pub fn run() {
 
             app.manage(AppState::new(conn, readers, http));
 
-            // ── papr:// deep links (feature F6) ───────────────────────
+            // ── zenrssreader:// deep links (feature F6) ───────────────────────
             // Registered after `app.manage` so the handler can always reach
             // `AppState` to buffer a cold-start link. Links opened while the
             // app is already running arrive here directly; a cold-start link
@@ -151,15 +236,14 @@ pub fn run() {
                 use tauri_plugin_deep_link::DeepLinkExt;
                 let handle = app.handle().clone();
                 app.deep_link().on_open_url(move |event| {
-                    let urls: Vec<String> =
-                        event.urls().iter().map(|u| u.to_string()).collect();
+                    let urls: Vec<String> = event.urls().iter().map(|u| u.to_string()).collect();
                     handle_deep_links(&handle, &urls);
                 });
                 // On Linux/Windows dev builds, register the scheme at runtime
-                // so `papr://` resolves without a full bundle install.
+                // so `zenrssreader://` resolves without a full bundle install.
                 #[cfg(any(windows, target_os = "linux"))]
                 {
-                    let _ = app.deep_link().register("papr");
+                    let _ = app.deep_link().register("zenrssreader");
                 }
             }
 
@@ -210,13 +294,12 @@ pub fn run() {
                         Some("black") => (0x15, 0x10, 0x0F),
                         _ => (0x25, 0x20, 0x1F),
                     };
-                    let _ = win
-                        .set_background_color(Some(tauri::window::Color(r, g, b, 0xFF)));
+                    let _ = win.set_background_color(Some(tauri::window::Color(r, g, b, 0xFF)));
                 }
             }
 
             // ── Menu-bar tray (keeps the app resident for refreshes) ──
-            tray::build(app.handle(), &lang, unread, latest_fetch.as_deref())?;
+            tray::build(app.handle(), &lang, unread, latest_refresh.as_deref())?;
 
             // ── Background refresh scheduler ──────────────────────────
             scheduler::spawn_scheduler(app.handle().clone());
@@ -257,6 +340,14 @@ pub fn run() {
                 let _ = db::set_setting(&conn, "card_image_backfill_v2", "1");
             });
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if window.label() == "main" {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::list_folders,
@@ -329,7 +420,20 @@ pub fn run() {
             page_view::set_page_view_bounds,
             page_view::set_page_view_visible,
             page_view::close_page_view,
+            debug_logs,
+            open_log_dir,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Papr");
+        .build(tauri::generate_context!())
+        .expect("error while building ZenRssReader");
+
+    app.run(|app, event| {
+        #[cfg(target_os = "macos")]
+        if let tauri::RunEvent::Reopen {
+            has_visible_windows: false,
+            ..
+        } = event
+        {
+            tray::show_window(app);
+        }
+    });
 }

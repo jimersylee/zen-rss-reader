@@ -1,10 +1,10 @@
 //! The desktop refresh scheduler: a Tauri-aware wrapper around the UI-free
-//! [`papr_core::ingestion::refresh::refresh_core`].
+//! [`zen_rss_reader_core::ingestion::refresh::refresh_core`].
 //!
 //! `refresh_all` adds what only the desktop app needs — single-flight locking,
 //! a progress channel to the webview, new-article notifications, FreshRSS sync
 //! and tray/badge updates — while the actual fetch/parse/ingest pipeline lives
-//! in `papr-core` so the agent CLI can drive the same code headlessly.
+//! in `zen-rss-reader-core` so the agent CLI can drive the same code headlessly.
 
 use crate::error::AppResult;
 use crate::ingestion::refresh;
@@ -61,7 +61,11 @@ pub async fn refresh_all(
             let _ = p.send(RefreshProgress::Started { total: 0 });
         }
         let synced = match sync::sync_now(&state.db, &client).await {
-            Ok(n) => n,
+            Ok(n) => {
+                let conn = state.db.lock().await;
+                let _ = db::record_refresh(&conn);
+                n
+            }
             Err(e) => {
                 log::warn!("sync failed: {e}");
                 0
@@ -89,6 +93,11 @@ pub async fn refresh_all(
     // heavier tail (sync, notifications, tray) so an idle tick is genuinely idle.
     if !summary.ran {
         return Ok(0);
+    }
+
+    {
+        let conn = state.db.lock().await;
+        let _ = db::record_refresh(&conn);
     }
 
     let total_new = summary.new_articles;

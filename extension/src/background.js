@@ -1,5 +1,5 @@
 /**
- * Papr background service worker (Manifest V3).
+ * ZenRssReader background service worker (Manifest V3).
  *
  * Its only job is the toolbar badge: when a content script reports that the
  * current page has feeds, it shows the feed count on the action icon for that
@@ -15,10 +15,10 @@ function setBadge(tabId, count) {
     chrome.action.setBadgeBackgroundColor({ tabId: tabId, color: "#B5651D" });
     chrome.action.setTitle({
       tabId: tabId,
-      title: count + " feed" + (count === 1 ? "" : "s") + " found — open Papr",
+      title: count + " feed" + (count === 1 ? "" : "s") + " found — open ZenRssReader",
     });
   } else {
-    chrome.action.setTitle({ tabId: tabId, title: "Papr — no feeds on this page" });
+    chrome.action.setTitle({ tabId: tabId, title: "ZenRssReader — no feeds on this page" });
   }
 }
 

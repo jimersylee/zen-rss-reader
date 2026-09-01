@@ -7,8 +7,7 @@
 //!
 //! Flow: `ClientLogin` for an auth token, push any queued local read/starred
 //! changes via `edit-tag`, pull the subscription list (to subscribe locally to
-//! new server feeds) and push any local-only feeds back to the server (so the
-//! two subscription lists converge rather than drifting), then pull the recent
+//! new server feeds and prune feeds removed remotely), then pull the recent
 //! reading-list (to reconcile read/starred state, matched to local articles by
 //! URL).
 
@@ -606,6 +605,35 @@ pub async fn unsubscribe_subscription_url(db: &Db, http: &Client, url: &str) -> 
     Ok(true)
 }
 
+/// Best-effort propagation for a locally-added subscription.
+pub async fn subscribe_subscription_url(
+    db: &Db,
+    http: &Client,
+    url: &str,
+    folder: Option<&str>,
+) -> AppResult<bool> {
+    let Some(creds) = creds(db).await? else {
+        log::info!("sync: no server connected; local subscribe only");
+        return Ok(false);
+    };
+    let base = greader_base(&creds.url, creds.provider);
+    let session = session_from_creds(db, http, &creds, &base).await?;
+    subscribe_url(&session, http, url, "feed-url").await?;
+    if folder.is_some() {
+        set_subscription_folder(
+            &session,
+            http,
+            &format!("feed/{url}"),
+            &[],
+            folder,
+            "feed-url",
+        )
+        .await?;
+    }
+    log::info!("sync: subscribed server to feed: {url}");
+    Ok(true)
+}
+
 /// Best-effort propagation for a local feed URL edit. Without this, the next
 /// sync can pull the old server subscription back into the local DB as a
 /// duplicate feed with the same title.
@@ -850,21 +878,23 @@ async fn pull_contents(
     session: &Session,
     http: &Client,
     provider: Provider,
+    unread_only: bool,
+    label: &str,
 ) -> AppResult<Contents> {
     if matches!(provider, Provider::Miniflux) {
         let ids: IdList = json_ok(
             send_ok(
-                session.get(
-                    http,
-                    &format!("stream/items/ids?output=json&s={READING_LIST}&n=1000"),
-                ),
-                "GET stream/items/ids reading-list",
+                session.get(http, &item_ids_query(unread_only)),
+                &format!("GET stream/items/ids {label}"),
             )
             .await?,
-            "stream/items/ids reading-list",
+            &format!("stream/items/ids {label}"),
         )
         .await?;
-        log::info!("sync: pulled {} remote item ids", ids.item_refs.len());
+        log::info!(
+            "sync: pulled {} remote {label} item ids",
+            ids.item_refs.len()
+        );
         if ids.item_refs.is_empty() {
             return Ok(Contents { items: Vec::new() });
         }
@@ -878,26 +908,39 @@ async fn pull_contents(
         return json_ok(
             send_ok(
                 session.post(http, "stream/items/contents").form(&form),
-                "POST stream/items/contents",
+                &format!("POST stream/items/contents {label}"),
             )
             .await?,
-            "stream/items/contents",
+            &format!("stream/items/contents {label}"),
         )
         .await;
     }
 
     json_ok(
         send_ok(
-            session.get(
-                http,
-                &format!("stream/contents/{READING_LIST}?output=json&n=1000"),
-            ),
-            "GET stream/contents reading-list",
+            session.get(http, &contents_query(unread_only)),
+            &format!("GET stream/contents {label}"),
         )
         .await?,
-        "stream/contents reading-list",
+        &format!("stream/contents {label}"),
     )
     .await
+}
+
+fn item_ids_query(unread_only: bool) -> String {
+    let mut path = format!("stream/items/ids?output=json&s={READING_LIST}&n=1000");
+    if unread_only {
+        path.push_str(&format!("&xt={READ_TAG}"));
+    }
+    path
+}
+
+fn contents_query(unread_only: bool) -> String {
+    let mut path = format!("stream/contents/{READING_LIST}?output=json&n=1000");
+    if unread_only {
+        path.push_str(&format!("&xt={READ_TAG}"));
+    }
+    path
 }
 
 async fn push_queue(db: &Db, http: &Client, session: &Session, label: &str) -> AppResult<usize> {
@@ -939,17 +982,16 @@ async fn push_queue(db: &Db, http: &Client, session: &Session, label: &str) -> A
     Ok(pushed)
 }
 
-/// Local feed URLs the server doesn't already carry, so each can be subscribed
-/// remotely. Pure set difference, factored out of `sync_now` so the selection
-/// is unit-testable without a live server.
-fn feeds_to_push<'a>(
-    local: &'a [String],
+/// Local feed ids the server no longer carries. Pure set difference, factored
+/// out of `sync_now` so the selection is unit-testable without a live server.
+fn feeds_to_delete(
+    local: &[(i64, String)],
     server: &std::collections::HashSet<String>,
-) -> Vec<&'a str> {
+) -> Vec<i64> {
     local
         .iter()
-        .filter(|u| !server.contains(*u))
-        .map(String::as_str)
+        .filter(|(_, url)| !server.contains(url))
+        .map(|(id, _)| *id)
         .collect()
 }
 
@@ -1035,53 +1077,31 @@ pub async fn sync_now(db: &Db, http: &Client) -> AppResult<usize> {
         }
     }
 
-    // 2b ── push subscriptions: subscribe the server to any local feed it
-    // doesn't have yet, so adding a feed in the app propagates to the server
-    // instead of leaving the two sides to drift. Best-effort and idempotent —
-    // re-subscribing a feed the server already has is a no-op there.
+    // 2b ── prune subscriptions: in connected mode the server subscription
+    // list is the source of truth, so remote deletes/URL edits must remove the
+    // stale local feed instead of re-subscribing it upstream.
     let local_feed_targets = {
         let conn = db.lock().await;
-        db::feed_sync_targets(&conn)?
+        db::feed_ids_for_sync(&conn)?
     };
-    let local_feed_urls: Vec<String> = local_feed_targets
-        .iter()
-        .map(|(url, _)| url.clone())
-        .collect();
-    for url in feeds_to_push(&local_feed_urls, &server_urls) {
-        let pushed = match subscribe_url(&session, http, url, "local-only").await {
-            Ok(_) => true,
-            Err(e) => {
-                log::warn!("sync: failed to subscribe server to {url}: {e}");
-                false
-            }
-        };
-        if pushed {
-            log::info!("sync: subscribed server to local feed: {url}");
-            let folder = local_feed_targets
-                .iter()
-                .find(|(u, _)| u == url)
-                .and_then(|(_, folder)| folder.as_deref());
-            if folder.is_some() {
-                if let Err(e) = set_subscription_folder(
-                    &session,
-                    http,
-                    &format!("feed/{url}"),
-                    &[],
-                    folder,
-                    "local-only",
-                )
-                .await
-                {
-                    log::warn!("sync: failed to set server folder for {url}: {e}");
-                }
-            }
+    let local_only_feed_ids = feeds_to_delete(&local_feed_targets, &server_urls);
+    if !local_only_feed_ids.is_empty() {
+        let conn = db.lock().await;
+        for id in local_only_feed_ids {
+            db::delete_feed(&conn, id)?;
+            log::info!("sync: removed local feed missing on server: #{id}");
         }
     }
 
-    // 3 ── pull recent remote items. The sync server is the source of truth in
-    // connected mode, so new remote articles are inserted locally and remote
-    // read/starred state overwrites local state.
-    let contents = pull_contents(&session, http, creds.provider).await?;
+    // 3 ── pull recent remote items plus the unread stream. The sync server is
+    // the source of truth in connected mode, so new remote articles are
+    // inserted locally and remote read/starred state overwrites local state.
+    let mut contents = pull_contents(&session, http, creds.provider, false, "reading-list").await?;
+    contents.items.extend(
+        pull_contents(&session, http, creds.provider, true, "unread")
+            .await?
+            .items,
+    );
 
     let mut reconciled = 0usize;
     let mut inserted = 0usize;
@@ -1190,26 +1210,31 @@ mod tests {
     }
 
     #[test]
-    fn feeds_to_push_selects_only_local_only_feeds() {
+    fn feeds_to_delete_selects_only_local_only_feeds() {
         let local = vec![
-            "https://a.example/feed".to_string(),
-            "https://b.example/feed".to_string(),
-            "https://c.example/feed".to_string(),
+            (1, "https://a.example/feed".to_string()),
+            (2, "https://b.example/feed".to_string()),
+            (3, "https://c.example/feed".to_string()),
         ];
         let server: std::collections::HashSet<String> =
             ["https://b.example/feed".to_string()].into_iter().collect();
-        assert_eq!(
-            feeds_to_push(&local, &server),
-            vec!["https://a.example/feed", "https://c.example/feed"]
-        );
+        assert_eq!(feeds_to_delete(&local, &server), vec![1, 3]);
     }
 
     #[test]
-    fn feeds_to_push_empty_when_server_has_everything() {
-        let local = vec!["https://a.example/feed".to_string()];
+    fn feeds_to_delete_empty_when_server_has_everything() {
+        let local = vec![(1, "https://a.example/feed".to_string())];
         let server: std::collections::HashSet<String> =
             ["https://a.example/feed".to_string()].into_iter().collect();
-        assert!(feeds_to_push(&local, &server).is_empty());
+        assert!(feeds_to_delete(&local, &server).is_empty());
+    }
+
+    #[test]
+    fn unread_pull_excludes_read_items() {
+        assert!(item_ids_query(true).contains("&xt=user/-/state/com.google/read"));
+        assert!(contents_query(true).contains("&xt=user/-/state/com.google/read"));
+        assert!(!item_ids_query(false).contains("&xt="));
+        assert!(!contents_query(false).contains("&xt="));
     }
 
     #[test]

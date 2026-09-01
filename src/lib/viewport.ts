@@ -48,12 +48,7 @@ export interface ClampResult {
  * floor at the near margin. The floor is applied last so it wins when the
  * overlay is larger than the viewport.
  */
-export function clampAxis(
-  coord: number,
-  size: number,
-  viewport: number,
-  margin: number,
-): number {
+export function clampAxis(coord: number, size: number, viewport: number, margin: number): number {
   return Math.max(margin, Math.min(coord, viewport - size - margin));
 }
 

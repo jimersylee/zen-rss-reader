@@ -30,7 +30,6 @@ impl SourceType {
             SourceType::Newsletter => "newsletter",
         }
     }
-
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -202,7 +201,15 @@ pub enum ArticleQuery {
     content = "data"
 )]
 pub enum RefreshProgress {
-    Started { total: usize },
-    FeedDone { feed_id: i64, new_articles: usize, error: Option<String> },
-    Finished { new_articles: usize },
+    Started {
+        total: usize,
+    },
+    FeedDone {
+        feed_id: i64,
+        new_articles: usize,
+        error: Option<String>,
+    },
+    Finished {
+        new_articles: usize,
+    },
 }

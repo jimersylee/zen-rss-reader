@@ -1,7 +1,7 @@
 //! Email newsletter ingestion (feature F5, Part B).
 //!
 //! Competitors offer a hosted "dedicated address" for newsletters; that needs
-//! a mail server Papr — being local-first — does not run. The local-first
+//! a mail server ZenRssReader — being local-first — does not run. The local-first
 //! equivalent is to **poll an IMAP mailbox** the user already owns (a Gmail
 //! label, a Fastmail folder, …) and turn each message into an article.
 //!
@@ -140,23 +140,21 @@ pub fn email_to_article(raw: &[u8]) -> Option<ParsedEmail> {
         .message_id()
         .map(|s| s.to_string())
         .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| format!("papr-newsletter-{}", stable_hash(raw)));
+        .unwrap_or_else(|| format!("zenrssreader-newsletter-{}", stable_hash(raw)));
 
     // ── Attachments → enclosures (so podcast-style audio mails still work). ──
     let enclosures: Vec<Enclosure> = msg
         .attachments()
         .filter_map(|att| {
             let name = att.attachment_name()?;
-            let mime = att
-                .content_type()
-                .map(|c| {
-                    let mut t = c.ctype().to_string();
-                    if let Some(sub) = c.subtype() {
-                        t.push('/');
-                        t.push_str(sub);
-                    }
-                    t
-                });
+            let mime = att.content_type().map(|c| {
+                let mut t = c.ctype().to_string();
+                if let Some(sub) = c.subtype() {
+                    t.push('/');
+                    t.push_str(sub);
+                }
+                t
+            });
             // Emails embed attachment bytes inline; we only surface a
             // descriptive pseudo-URL (there is nothing to link to).
             Some(Enclosure {
@@ -327,7 +325,9 @@ body\r\n";
         let published = p.article.published_at.expect("has a date");
         let parsed = chrono::DateTime::parse_from_rfc3339(&published).expect("rfc3339");
         // Clamped to roughly "now", well short of the year-2099 header.
-        assert!(parsed.with_timezone(&chrono::Utc) < chrono::Utc::now() + chrono::Duration::days(2));
+        assert!(
+            parsed.with_timezone(&chrono::Utc) < chrono::Utc::now() + chrono::Duration::days(2)
+        );
     }
 
     #[test]
@@ -352,7 +352,7 @@ Content-Type: text/plain\r\n\
 some content\r\n";
         let p1 = email_to_article(raw).expect("parse");
         let p2 = email_to_article(raw).expect("parse");
-        assert!(p1.article.guid.starts_with("papr-newsletter-"));
+        assert!(p1.article.guid.starts_with("zenrssreader-newsletter-"));
         // Deterministic: the same bytes always hash to the same guid.
         assert_eq!(p1.article.guid, p2.article.guid);
     }

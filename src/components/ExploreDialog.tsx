@@ -74,7 +74,7 @@ export default function ExploreDialog({ onClose, onToast }: Props) {
     },
     onError: (e) => reportError(e),
   });
-  const pendingUrl = add.isPending ? add.variables ?? null : null;
+  const pendingUrl = add.isPending ? (add.variables ?? null) : null;
 
   const entries = directory.data ?? [];
 
@@ -133,11 +133,7 @@ export default function ExploreDialog({ onClose, onToast }: Props) {
                 : t("explore.subtitle")}
             </p>
           </div>
-          <button
-            className="explore-close"
-            onClick={onClose}
-            aria-label={t("common.close")}
-          >
+          <button className="explore-close" onClick={onClose} aria-label={t("common.close")}>
             <Icon name="x" size={16} />
           </button>
         </div>
@@ -155,11 +151,7 @@ export default function ExploreDialog({ onClose, onToast }: Props) {
               {...NO_AUTOCORRECT}
             />
           </div>
-          <div
-            className="explore-chips"
-            role="tablist"
-            aria-label={t("explore.categories")}
-          >
+          <div className="explore-chips" role="tablist" aria-label={t("explore.categories")}>
             <button
               role="tab"
               aria-selected={category === null}
@@ -183,12 +175,8 @@ export default function ExploreDialog({ onClose, onToast }: Props) {
         </div>
 
         <div className="explore-grid">
-          {directory.isLoading && (
-            <div className="discover-empty">{t("explore.loading")}</div>
-          )}
-          {directory.isError && (
-            <div className="discover-empty">{t("explore.error")}</div>
-          )}
+          {directory.isLoading && <div className="discover-empty">{t("explore.loading")}</div>}
+          {directory.isError && <div className="discover-empty">{t("explore.error")}</div>}
           {directory.isSuccess && filtered.length === 0 && (
             <div className="discover-empty">{t("explore.noResults")}</div>
           )}
@@ -211,18 +199,12 @@ export default function ExploreDialog({ onClose, onToast }: Props) {
                   />
                   <div className="explore-card-meta">
                     <span className="explore-card-title">{r.title}</span>
-                    {r.category && (
-                      <span className="explore-card-cat">{r.category}</span>
-                    )}
+                    {r.category && <span className="explore-card-cat">{r.category}</span>}
                   </div>
                 </div>
-                {r.description && (
-                  <p className="explore-card-desc">{r.description}</p>
-                )}
+                {r.description && <p className="explore-card-desc">{r.description}</p>}
                 <button
-                  className={`s-btn explore-card-add${
-                    subscribed ? "" : " primary"
-                  }`}
+                  className={`s-btn explore-card-add${subscribed ? "" : " primary"}`}
                   disabled={subscribed || pendingUrl !== null}
                   onClick={() => add.mutate(r.feedUrl)}
                   aria-label={`${t("explore.add")} — ${r.title}`}
@@ -250,9 +232,7 @@ export default function ExploreDialog({ onClose, onToast }: Props) {
               className="s-select"
               aria-label={t("explore.folderLabel")}
               value={folderId ?? ""}
-              onChange={(e) =>
-                setFolderId(e.target.value ? Number(e.target.value) : null)
-              }
+              onChange={(e) => setFolderId(e.target.value ? Number(e.target.value) : null)}
             >
               <option value="">{t("explore.noFolder")}</option>
               {folders.data!.map((f) => (

@@ -71,9 +71,7 @@ const ls = {
    *  stale value falls back instead of flowing through an unchecked cast. */
   oneOf: <T extends string>(k: string, allowed: readonly T[], fallback: T): T => {
     const v = localStorage.getItem(k);
-    return v != null && (allowed as readonly string[]).includes(v)
-      ? (v as T)
-      : fallback;
+    return v != null && (allowed as readonly string[]).includes(v) ? (v as T) : fallback;
   },
   /** A persisted number, clamped to `[min, max]`. localStorage is
    *  webview-writable and may hold a corrupt non-numeric value (NaN would
@@ -235,20 +233,11 @@ export const useUi = create<UiState>((set) => ({
   listAnchor: 0,
 
   theme: ls.oneOf<Theme>("theme", ["light", "dark"], "light"),
-  density: ls.oneOf<Density>(
-    "density",
-    ["compact", "cozy", "spacious"],
-    "cozy",
-  ),
+  density: ls.oneOf<Density>("density", ["compact", "cozy", "spacious"], "cozy"),
   viewMode: ls.oneOf<ViewMode>("viewMode", ["list", "card"], "list"),
   readerFont: loadReaderFont(),
   readerSize: ls.num("readerSize", 17, READER_BOUNDS.size.min, READER_BOUNDS.size.max),
-  readerLeading: ls.num(
-    "readerLeading",
-    165,
-    READER_BOUNDS.leading.min,
-    READER_BOUNDS.leading.max,
-  ),
+  readerLeading: ls.num("readerLeading", 165, READER_BOUNDS.leading.min, READER_BOUNDS.leading.max),
   readerWidth: ls.num("readerWidth", 680, READER_BOUNDS.width.min, READER_BOUNDS.width.max),
 
   sidebarWidth: ls.num("sidebarWidth", 248, PANEL_BOUNDS.sidebar.min, PANEL_BOUNDS.sidebar.max),
@@ -275,10 +264,23 @@ export const useUi = create<UiState>((set) => ({
   toggleSort: () => set((s) => ({ sortOldest: !s.sortOldest, listAnchor: 0 })),
   setListAnchor: (listAnchor) => set({ listAnchor }),
 
-  setTheme: (theme) => { ls.set("theme", theme); mirrorTheme(theme); set({ theme }); },
-  setDensity: (density) => { ls.set("density", density); set({ density }); },
-  setViewMode: (viewMode) => { ls.set("viewMode", viewMode); set({ viewMode }); },
-  setReaderFont: (readerFont) => { ls.set("readerFont", readerFont); set({ readerFont }); },
+  setTheme: (theme) => {
+    ls.set("theme", theme);
+    mirrorTheme(theme);
+    set({ theme });
+  },
+  setDensity: (density) => {
+    ls.set("density", density);
+    set({ density });
+  },
+  setViewMode: (viewMode) => {
+    ls.set("viewMode", viewMode);
+    set({ viewMode });
+  },
+  setReaderFont: (readerFont) => {
+    ls.set("readerFont", readerFont);
+    set({ readerFont });
+  },
   setReader: (p) => {
     // Clamp on write too: any caller (or a stale slider range) is kept from
     // pushing an out-of-range value into the persisted store or a CSS var.

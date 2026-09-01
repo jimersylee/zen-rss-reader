@@ -28,7 +28,7 @@ pub struct AppState {
     /// command and the periodic scheduler can otherwise fire concurrently —
     /// `try_lock` lets a second run bow out instead of duplicating the work.
     pub refresh_lock: Mutex<()>,
-    /// A `papr://subscribe` URL delivered before the webview registered its
+    /// A `zenrssreader://subscribe` URL delivered before the webview registered its
     /// `deep-link-subscribe` listener — typically a cold-start launch where the
     /// link arrives during `setup()`. The frontend drains this once on mount
     /// (`take_pending_deep_link`); a live link, arriving after the listener
@@ -39,7 +39,10 @@ pub struct AppState {
 impl AppState {
     /// Build the shared state. `readers` must be non-empty.
     pub fn new(db: Connection, readers: Vec<Connection>, http: Client) -> Self {
-        assert!(!readers.is_empty(), "read pool must have at least one connection");
+        assert!(
+            !readers.is_empty(),
+            "read pool must have at least one connection"
+        );
         Self {
             db: Mutex::new(db),
             readers: readers.into_iter().map(Mutex::new).collect(),
@@ -84,10 +87,7 @@ impl AppState {
     /// poisoning carries no torn state — recover the guard rather than
     /// propagating the panic and taking the whole backend down.
     pub fn http(&self) -> Client {
-        self.http
-            .read()
-            .unwrap_or_else(|e| e.into_inner())
-            .clone()
+        self.http.read().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     /// Swap in a freshly built HTTP client (e.g. after a proxy/timeout change).

@@ -13,9 +13,7 @@ describe("imageBytes", () => {
   });
 
   it("converts number-array IPC responses without stringifying", () => {
-    expect(Array.from(imageBytes([0xff, 0xd8, 0xff]))).toEqual([
-      0xff, 0xd8, 0xff,
-    ]);
+    expect(Array.from(imageBytes([0xff, 0xd8, 0xff]))).toEqual([0xff, 0xd8, 0xff]);
   });
 });
 
@@ -28,9 +26,7 @@ describe("imageMime", () => {
   it("detects JPEG, GIF and WebP signatures", () => {
     expect(imageMime("x", new Uint8Array([0xff, 0xd8, 0xff]))).toBe("image/jpeg");
     expect(imageMime("x", new Uint8Array([0x47, 0x49, 0x46]))).toBe("image/gif");
-    const webp = new Uint8Array([
-      0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50,
-    ]);
+    const webp = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50]);
     expect(imageMime("x", webp)).toBe("image/webp");
   });
 
@@ -47,9 +43,7 @@ describe("imageMime", () => {
   });
 
   it("defaults to image/jpeg when nothing identifies the type", () => {
-    expect(imageMime("https://cdn.example/no-ext", new Uint8Array([0, 1, 2]))).toBe(
-      "image/jpeg",
-    );
+    expect(imageMime("https://cdn.example/no-ext", new Uint8Array([0, 1, 2]))).toBe("image/jpeg");
   });
 });
 

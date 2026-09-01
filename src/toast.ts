@@ -63,11 +63,8 @@ const UNDO_MS = 6000;
 
 export const toast = {
   show: (text: string, kbd?: string) =>
-    useToasts
-      .getState()
-      .push({ text, kbd, tone: "default", duration: SUCCESS_MS }),
-  error: (text: string) =>
-    useToasts.getState().push({ text, tone: "error", duration: ERROR_MS }),
+    useToasts.getState().push({ text, kbd, tone: "default", duration: SUCCESS_MS }),
+  error: (text: string) => useToasts.getState().push({ text, tone: "error", duration: ERROR_MS }),
 };
 
 /** Raise an error toast from any caught exception. */

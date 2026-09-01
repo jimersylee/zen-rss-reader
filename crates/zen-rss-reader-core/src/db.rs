@@ -251,7 +251,7 @@ static MIGRATIONS: LazyLock<Migrations> = LazyLock::new(|| {
     ])
 });
 
-/// Register Papr's custom SQL scalar functions on a freshly opened connection.
+/// Register ZenRssReader's custom SQL scalar functions on a freshly opened connection.
 ///
 /// SQLite's built-in `LOWER()` only case-folds ASCII (it has no Unicode
 /// awareness without the ICU extension, which the bundled build omits). Rust's
@@ -711,7 +711,7 @@ pub fn delete_feed(conn: &Connection, id: i64) -> AppResult<()> {
 /// sources are excluded: OPML is an RSS-subscription interchange format, and a
 /// newsletter's `feed_url` is a synthetic `imap://user@host:port/folder`
 /// string — exporting it would emit an `<outline xmlUrl="imap://…">` that any
-/// reader (Papr's own `import_opml` included) would treat as an RSS feed and
+/// reader (ZenRssReader's own `import_opml` included) would treat as an RSS feed and
 /// then fail to HTTP-fetch forever, with the IMAP credentials not even carried.
 pub fn feeds_for_export(conn: &Connection) -> AppResult<Vec<(String, String, Option<String>)>> {
     let mut stmt = conn.prepare(
@@ -735,6 +735,16 @@ pub fn feed_urls_for_sync(conn: &Connection) -> AppResult<Vec<String>> {
     )?;
     let rows = stmt
         .query_map([], |r| r.get(0))?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(rows)
+}
+
+pub fn feed_ids_for_sync(conn: &Connection) -> AppResult<Vec<(i64, String)>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, feed_url FROM feeds WHERE source_type != 'newsletter' AND feed_url <> ''",
+    )?;
+    let rows = stmt
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
         .collect::<Result<Vec<_>, _>>()?;
     Ok(rows)
 }
@@ -1102,6 +1112,19 @@ pub fn upsert_article(
     dedup: bool,
     rules: &[Rule],
 ) -> AppResult<bool> {
+    if let Some(url) = a.url.as_deref().filter(|u| !u.is_empty()) {
+        let exists_in_feed: bool = conn.query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM articles
+                WHERE feed_id = ?1 AND url = ?2 AND remote_id IS NOT NULL
+            )",
+            params![feed_id, url],
+            |r| r.get(0),
+        )?;
+        if exists_in_feed {
+            return Ok(false);
+        }
+    }
     if dedup {
         if let Some(url) = a.url.as_deref().filter(|u| !u.is_empty()) {
             let exists: bool = conn.query_row(
@@ -2283,13 +2306,24 @@ pub fn count_feed_unread(conn: &Connection, feed_id: i64) -> AppResult<i64> {
     )?)
 }
 
-/// Timestamp of the most recent successful feed fetch, if any.
-pub fn latest_fetch(conn: &Connection) -> AppResult<Option<String>> {
-    Ok(
-        conn.query_row("SELECT MAX(last_fetched_at) FROM feeds", [], |r| {
-            r.get::<_, Option<String>>(0)
-        })?,
-    )
+/// Record a completed refresh cycle for status surfaces such as the tray menu.
+pub fn record_refresh(conn: &Connection) -> AppResult<()> {
+    conn.execute(
+        "INSERT INTO settings(key, value) VALUES ('last_refresh_at', datetime('now'))
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        [],
+    )?;
+    Ok(())
+}
+
+/// Timestamp of the most recent completed refresh cycle, falling back to the
+/// per-feed fetch state recorded before this setting was introduced.
+pub fn latest_refresh(conn: &Connection) -> AppResult<Option<String>> {
+    Ok(get_setting(conn, "last_refresh_at")?.or(conn.query_row(
+        "SELECT MAX(last_fetched_at) FROM feeds",
+        [],
+        |r| r.get::<_, Option<String>>(0),
+    )?))
 }
 
 // ─────────────────────────── sync ───────────────────────────
@@ -2640,6 +2674,26 @@ mod tests {
         // "never refreshed".
         touch_feed(&conn, feed_id).unwrap();
         assert!(feed_last_fetched(&conn, feed_id).unwrap().is_some());
+    }
+
+    #[test]
+    fn latest_refresh_uses_the_completed_refresh_cycle() {
+        let (conn, _) = test_db();
+        conn.execute(
+            "UPDATE feeds SET last_fetched_at = '2026-07-16 05:47:32'",
+            [],
+        )
+        .unwrap();
+        assert_eq!(
+            latest_refresh(&conn).unwrap().as_deref(),
+            Some("2026-07-16 05:47:32")
+        );
+
+        record_refresh(&conn).unwrap();
+        assert_ne!(
+            latest_refresh(&conn).unwrap().as_deref(),
+            Some("2026-07-16 05:47:32")
+        );
     }
 
     #[test]
@@ -3072,6 +3126,48 @@ mod tests {
         assert!(upsert_article(&conn, feed_id, &mk("g-ok", "Real Story"), false, &rules).unwrap());
         // A duplicate guid → not new (no double count).
         assert!(!upsert_article(&conn, feed_id, &mk("g-ok", "Real Story"), false, &rules).unwrap());
+    }
+
+    #[test]
+    fn upsert_article_dedups_same_feed_url_when_guid_changes() {
+        let (conn, article_id) = test_db();
+        let feed_id: i64 = conn
+            .query_row(
+                "SELECT feed_id FROM articles WHERE id = ?1",
+                [article_id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        set_remote_id(&conn, article_id, "remote-item-id").unwrap();
+        set_read(&conn, article_id, true).unwrap();
+
+        let same_url_new_guid = NewArticle {
+            guid: "local-feed-guid-after-disconnect".into(),
+            url: Some("https://example.com/a1".into()),
+            title: "Same Article".into(),
+            author: None,
+            summary: None,
+            content_html: None,
+            body_text: "copy".into(),
+            image_url: None,
+            published_at: None,
+            enclosures: Vec::new(),
+        };
+
+        assert!(
+            !upsert_article(&conn, feed_id, &same_url_new_guid, false, &[]).unwrap(),
+            "same-feed URL should not be reinserted as a new unread article"
+        );
+        let (rows, unread): (i64, i64) = conn
+            .query_row(
+                "SELECT COUNT(*), SUM(CASE WHEN is_read = 0 THEN 1 ELSE 0 END)
+                 FROM articles WHERE feed_id = ?1 AND url = ?2",
+                params![feed_id, "https://example.com/a1"],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(rows, 1);
+        assert_eq!(unread, 0);
     }
 
     // ── rule matching ────────────────────────────────────────────────

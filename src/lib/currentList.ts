@@ -8,12 +8,7 @@ import type { ArticleSummary } from "../types";
 
 export function readCurrentItems(qc: QueryClient): ArticleSummary[] {
   const { query, unreadOnly, sortOldest, listAnchor } = useUi.getState();
-  const inf = qc.getQueryData([
-    "articles",
-    query,
-    unreadOnly,
-    sortOldest,
-    listAnchor,
-  ]) as { pages: ArticleSummary[][] } | undefined;
+  const inf = qc.getQueryData(["articles", query, unreadOnly, sortOldest, listAnchor]) as
+    { pages: ArticleSummary[][] } | undefined;
   return inf?.pages.flat() ?? [];
 }

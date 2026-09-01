@@ -1,9 +1,9 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Papr",
+  "productName": "ZenRssReader",
   "version": "0.12.0",
-  "identifier": "com.thomas.papr",
-  "mainBinaryName": "papr-desktop",
+  "identifier": "com.jimersylee.zenrssreader",
+  "mainBinaryName": "zenrssreader-desktop",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1430",
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Papr",
+        "title": "ZenRssReader",
         "width": 1280,
         "height": 820,
         "minWidth": 920,
@@ -32,12 +32,12 @@
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": ["papr"]
+        "schemes": ["zenrssreader"]
       }
     },
     "updater": {
       "endpoints": [
-        "https://github.com/l0ng-ai/papr/releases/latest/download/latest.json"
+        "https://github.com/jimersylee/zen-rss-reader/releases/latest/download/latest.json"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEE4OTJBNjkzOERCREFEMUUKUldRZXJiMk5rNmFTcUpDQnFPMi9CSmJwajFTcURiL2szd2lXenEyRHdKWmVGN1VFZGNxQXpUeEIK"
     }

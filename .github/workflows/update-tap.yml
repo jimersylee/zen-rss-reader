@@ -1,6 +1,6 @@
 name: Update Homebrew tap
 
-# When a GitHub Release is published, bump the cask in the l0ng-ai/homebrew-papr
+# When a GitHub Release is published, bump the cask in the jimersylee/homebrew-papr
 # tap to the new version + per-arch sha256 so `brew upgrade --cask papr` picks it
 # up. Runs on `published` (not the draft that release.yml first creates) because
 # a draft release's asset URLs 404 for anonymous downloads — we need the public
@@ -54,7 +54,7 @@ jobs:
       - name: Check out tap
         uses: actions/checkout@v4
         with:
-          repository: l0ng-ai/homebrew-papr
+          repository: jimersylee/homebrew-papr
           ssh-key: ${{ secrets.TAP_DEPLOY_KEY }}
           path: tap
 

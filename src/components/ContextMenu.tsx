@@ -101,9 +101,7 @@ export default function ContextMenu({ x, y, items, onClose }: Props) {
               onClose();
             }}
           >
-            <span className="ctx-ico">
-              {it.icon && <Icon name={it.icon} size={13} />}
-            </span>
+            <span className="ctx-ico">{it.icon && <Icon name={it.icon} size={13} />}</span>
             {it.label}
             {it.shortcut && <span className="ctx-shortcut">{it.shortcut}</span>}
           </div>

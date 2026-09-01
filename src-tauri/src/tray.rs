@@ -6,8 +6,8 @@
 
 use crate::db;
 use crate::models::ArticleQuery;
-use crate::scheduler;
 use crate::notify;
+use crate::scheduler;
 use crate::state::AppState;
 use chrono::{NaiveDateTime, Utc};
 use tauri::image::Image;
@@ -15,7 +15,7 @@ use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, Wry};
 
-const TRAY_ID: &str = "papr-tray";
+const TRAY_ID: &str = "zenrssreader-tray";
 const ICON: &[u8] = include_bytes!("../icons/tray.png");
 
 /// Format an elapsed-time string for a stored `datetime('now')` timestamp.
@@ -106,25 +106,25 @@ fn labels(lang: &str, unread: i64, last: Option<&str>) -> Labels {
     };
     let (open, refresh, mark_all, settings, quit) = match lang {
         "zh" => (
-            "打开 Papr",
+            "打开 ZenRssReader",
             "立即刷新全部",
             "全部标为已读",
             "设置…",
-            "退出 Papr",
+            "退出 ZenRssReader",
         ),
         "ja" => (
-            "Papr を開く",
+            "ZenRssReader を開く",
             "今すぐすべて更新",
             "すべて既読にする",
             "設定…",
-            "Papr を終了",
+            "ZenRssReader を終了",
         ),
         _ => (
-            "Open Papr",
+            "Open ZenRssReader",
             "Refresh All Now",
             "Mark All as Read",
             "Settings…",
-            "Quit Papr",
+            "Quit ZenRssReader",
         ),
     };
     Labels {
@@ -147,8 +147,7 @@ fn build_menu(
     let l = labels(lang, unread, last);
     // The two status lines are disabled — they are read-only labels.
     let status = MenuItem::with_id(app, "tray_unread", &l.unread, false, None::<&str>)?;
-    let refreshed =
-        MenuItem::with_id(app, "tray_refreshed", &l.refreshed, false, None::<&str>)?;
+    let refreshed = MenuItem::with_id(app, "tray_refreshed", &l.refreshed, false, None::<&str>)?;
     let open = MenuItem::with_id(app, "tray_open", l.open, true, None::<&str>)?;
     let refresh = MenuItem::with_id(app, "tray_refresh", l.refresh, true, None::<&str>)?;
     let mark = MenuItem::with_id(app, "tray_markall", l.mark_all, true, None::<&str>)?;
@@ -161,15 +160,18 @@ fn build_menu(
     Menu::with_items(
         app,
         &[
-            &status, &refreshed, &s1, &open, &s2, &refresh, &mark, &s3, &settings, &s4,
-            &quit,
+            &status, &refreshed, &s1, &open, &s2, &refresh, &mark, &s3, &settings, &s4, &quit,
         ],
     )
 }
 
-fn show_window(app: &AppHandle) {
+pub fn show_window(app: &AppHandle) {
+    #[cfg(target_os = "macos")]
+    let _ = app.show();
+
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
+        let _ = w.unminimize();
         let _ = w.set_focus();
     }
 }
@@ -181,8 +183,7 @@ fn handle_event(app: &AppHandle, event: MenuEvent) {
             let app = app.clone();
             tauri::async_runtime::spawn(async move {
                 let _ =
-                    scheduler::refresh_all(&app, None, false, scheduler::RefreshScope::All)
-                        .await;
+                    scheduler::refresh_all(&app, None, false, scheduler::RefreshScope::All).await;
             });
         }
         "tray_markall" => {
@@ -213,17 +214,12 @@ fn handle_event(app: &AppHandle, event: MenuEvent) {
 
 /// Install the tray icon at startup. `lang`, `unread` and `last` are read from
 /// the database by the caller (the connection is not yet behind the mutex).
-pub fn build(
-    app: &AppHandle,
-    lang: &str,
-    unread: i64,
-    last: Option<&str>,
-) -> tauri::Result<()> {
+pub fn build(app: &AppHandle, lang: &str, unread: i64, last: Option<&str>) -> tauri::Result<()> {
     let menu = build_menu(app, lang, unread, last)?;
     let tray = TrayIconBuilder::with_id(TRAY_ID)
         .icon(Image::from_bytes(ICON)?)
         .icon_as_template(true)
-        .tooltip("Papr")
+        .tooltip("ZenRssReader")
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(handle_event)
@@ -246,7 +242,7 @@ pub async fn refresh(app: &AppHandle) {
                 .flatten()
                 .unwrap_or_default(),
             db::count_unread(&conn).unwrap_or(0),
-            db::latest_fetch(&conn).ok().flatten(),
+            db::latest_refresh(&conn).ok().flatten(),
         )
     };
     // Tray mutations touch AppKit, which on macOS must happen on the main

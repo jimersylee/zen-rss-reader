@@ -1,4 +1,4 @@
-//! `papr setup` — register an ambient SessionStart integration so every agent
+//! `zenrssreader setup` — register an ambient SessionStart integration so every agent
 //! conversation starts with the current unread state already in context.
 //! Supports Claude Code, Codex and OpenCode; installs are idempotent and
 //! repair a stale binary path on re-run.
@@ -31,7 +31,7 @@ pub fn run(app: &str) -> Result<String, AxiError> {
     let apps = App::parse(app).ok_or_else(|| {
         AxiError::usage(
             format!("unknown app target `{app}`"),
-            vec!["Run `papr setup --app all|claude|codex|opencode`".into()],
+            vec!["Run `zenrssreader setup --app all|claude|codex|opencode`".into()],
         )
     })?;
     let bin = resolve_bin();
@@ -68,24 +68,24 @@ pub fn run(app: &str) -> Result<String, AxiError> {
     d.set("apps", Value::Array(apps_rows));
     d.help(vec![
         "Start a new agent session — the unread dashboard loads automatically".into(),
-        "Run `papr` to preview the context that will be injected".into(),
+        "Run `zenrssreader` to preview the context that will be injected".into(),
     ]);
     Ok(d.into_toon())
 }
 
-/// The command an integration should invoke. Prefer the bare name `papr` when it
+/// The command an integration should invoke. Prefer the bare name `zenrssreader` when it
 /// is on PATH and resolves to *this* executable (keeps a global install
 /// portable); otherwise fall back to the absolute path.
 fn resolve_bin() -> String {
     let current = std::env::current_exe().ok();
     if let (Some(cur), Ok(path)) = (current.as_ref(), std::env::var("PATH")) {
         for dir in std::env::split_paths(&path) {
-            let candidate = dir.join("papr");
+            let candidate = dir.join("zenrssreader");
             if candidate.is_file() {
                 // Compare canonical paths so a symlink to this binary still counts.
                 if let (Ok(a), Ok(b)) = (candidate.canonicalize(), cur.canonicalize()) {
                     if a == b {
-                        return "papr".to_string();
+                        return "zenrssreader".to_string();
                     }
                 }
             }
@@ -93,7 +93,7 @@ fn resolve_bin() -> String {
     }
     current
         .map(|p| p.display().to_string())
-        .unwrap_or_else(|| "papr".to_string())
+        .unwrap_or_else(|| "zenrssreader".to_string())
 }
 
 fn home() -> Result<PathBuf, AxiError> {
@@ -137,15 +137,15 @@ fn install_claude(bin: &str) -> Result<String, String> {
         .as_array_mut()
         .ok_or("SessionStart is not an array")?;
 
-    // Find an existing papr hook (command basename == "papr") to repair in place.
-    let is_papr = |cmd: &str| cmd == "papr" || cmd.ends_with("/papr");
+    // Find an existing zenrssreader hook (command basename == "zenrssreader") to repair in place.
+    let is_zenrssreader = |cmd: &str| cmd == "zenrssreader" || cmd.ends_with("/zenrssreader");
     let changed;
     let mut found = false;
     for group in arr.iter_mut() {
         if let Some(inner) = group.get_mut("hooks").and_then(|h| h.as_array_mut()) {
             for h in inner.iter_mut() {
                 if let Some(cmd) = h.get("command").and_then(|c| c.as_str()) {
-                    if is_papr(cmd) {
+                    if is_zenrssreader(cmd) {
                         found = true;
                         if cmd != bin {
                             h["command"] = serde_json::json!(bin);
@@ -193,11 +193,11 @@ fn install_codex(bin: &str) -> Result<String, String> {
     let arr = sessions
         .as_array_mut()
         .ok_or("SessionStart is not an array")?;
-    let is_papr = |cmd: &str| cmd == "papr" || cmd.ends_with("/papr");
+    let is_zenrssreader = |cmd: &str| cmd == "zenrssreader" || cmd.ends_with("/zenrssreader");
     let mut found = false;
     for h in arr.iter_mut() {
         if let Some(cmd) = h.get("command").and_then(|c| c.as_str()) {
-            if is_papr(cmd) {
+            if is_zenrssreader(cmd) {
                 found = true;
                 if cmd != bin {
                     h["command"] = serde_json::json!(bin);
@@ -275,33 +275,33 @@ fn ensure_codex_hooks(existing: &str) -> Option<String> {
 
 // ────────────────────────────── OpenCode ──────────────────────────────
 
-/// Install a managed OpenCode plugin that injects the papr dashboard as ambient
+/// Install a managed OpenCode plugin that injects the zenrssreader dashboard as ambient
 /// system context at session start.
 fn install_opencode(bin: &str) -> Result<String, String> {
     let dir = home()
         .map_err(|e| e.message.clone())?
         .join(".config/opencode/plugin");
     std::fs::create_dir_all(&dir).map_err(|e| format!("mkdir opencode/plugin: {e}"))?;
-    let file = dir.join("papr.js");
+    let file = dir.join("zenrssreader.js");
     let plugin = format!(
-        r#"// Managed by `papr setup` — injects the Papr unread dashboard at session
+        r#"// Managed by `zenrssreader setup` — injects the ZenRssReader unread dashboard at session
 // start so the agent can act on your feeds immediately. Safe to delete.
 import {{ execFile }} from "node:child_process"
 import {{ promisify }} from "node:util"
 const run = promisify(execFile)
 
-export const papr = async () => ({{
+export const zenrssreader = async () => ({{
   "experimental.systemPrompt": async ({{ parts }}) => {{
     try {{
       const {{ stdout }} = await run({bin:?}, [], {{ timeout: 5000 }})
       if (stdout.trim()) parts.push(stdout.trim())
-    }} catch (_) {{ /* papr unavailable — skip silently */ }}
+    }} catch (_) {{ /* zenrssreader unavailable — skip silently */ }}
   }},
 }})
 "#,
         bin = bin
     );
-    std::fs::write(&file, plugin).map_err(|e| format!("write papr.js: {e}"))?;
+    std::fs::write(&file, plugin).map_err(|e| format!("write zenrssreader.js: {e}"))?;
     Ok(format!("installed → {}", collapse(&file)))
 }
 

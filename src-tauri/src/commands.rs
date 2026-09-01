@@ -214,11 +214,24 @@ pub async fn add_feed(
     // all.)
     let _ = db::touch_feed(&conn, feed_id);
     let last_fetched_at = db::feed_last_fetched(&conn, feed_id).ok().flatten();
+    let folder = db::feed_folder_name(&conn, feed_id)?;
     // Count actual unread rows rather than tallying insertions: keeps the
     // returned `unread_count` aligned with the sidebar's `list_feeds` count
     // regardless of how filter rules pre-set article state.
     let unread = db::count_feed_unread(&conn, feed_id)?;
     drop(conn);
+    match crate::sync::subscribe_subscription_url(
+        &state.db,
+        &state.http(),
+        &feed_url,
+        folder.as_deref(),
+    )
+    .await
+    {
+        Ok(true) => {}
+        Ok(false) => log::info!("subscribe was not propagated to sync server"),
+        Err(e) => log::warn!("failed to propagate subscribe to sync server: {e}"),
+    }
 
     Ok(Feed {
         id: feed_id,
@@ -1162,7 +1175,7 @@ pub async fn refresh_tray(app: AppHandle) -> AppResult<()> {
     Ok(())
 }
 
-/// Drain a `papr://subscribe` URL that was delivered before the webview could
+/// Drain a `zenrssreader://subscribe` URL that was delivered before the webview could
 /// receive the `deep-link-subscribe` event (a cold-start launch). The frontend
 /// calls this once on mount; returns `None` when there is nothing pending.
 #[tauri::command]

@@ -23,13 +23,7 @@ interface Props {
  * Floating tag editor: toggle existing tags on an article, or create a new
  * one and attach it in a single step. Stays open across toggles.
  */
-export default function TagPicker({
-  articleId,
-  attached,
-  x,
-  y,
-  onClose,
-}: Props) {
+export default function TagPicker({ articleId, attached, x, y, onClose }: Props) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const ref = useRef<HTMLDivElement>(null);
@@ -47,9 +41,7 @@ export default function TagPicker({
   // restore it to the trigger (the toolbar tag button) on close.
   useEffect(() => {
     const trigger = document.activeElement as HTMLElement | null;
-    ref.current
-      ?.querySelector<HTMLElement>('[role="button"], input')
-      ?.focus();
+    ref.current?.querySelector<HTMLElement>('[role="button"], input')?.focus();
     return () => trigger?.focus?.();
   }, []);
 
@@ -104,10 +96,7 @@ export default function TagPicker({
                 }
               }}
             >
-              <span
-                className="tag-dot"
-                style={{ background: tagColor(tag.color) }}
-              />
+              <span className="tag-dot" style={{ background: tagColor(tag.color) }} />
               <span className="tag-picker-name">{tag.name}</span>
               {on && <Icon name="check" size={13} />}
             </div>

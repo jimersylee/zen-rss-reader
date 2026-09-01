@@ -4,7 +4,7 @@
 //!
 //! * [`search_directory`] — case-insensitive matching against a bundled
 //!   curated directory of well-known feeds (embedded with `include_str!`).
-//! * [`parse_deep_link`] — parsing a `papr://subscribe?url=<encoded>` deep
+//! * [`parse_deep_link`] — parsing a `zenrssreader://subscribe?url=<encoded>` deep
 //!   link handed over by the browser extension.
 //!
 //! Both are deliberately side-effect-free so they can be unit-tested without
@@ -93,10 +93,7 @@ pub fn directory() -> Vec<DirectoryEntry> {
 /// `"ZH"` both reduce to `"zh"`. Used to match a UI locale against the
 /// directory's coarser per-language tags.
 fn primary_lang(tag: &str) -> String {
-    tag.split(['-', '_'])
-        .next()
-        .unwrap_or(tag)
-        .to_lowercase()
+    tag.split(['-', '_']).next().unwrap_or(tag).to_lowercase()
 }
 
 /// Case-insensitive search of the curated directory, scoped to one language.
@@ -166,14 +163,14 @@ pub fn normalize_query_url(query: &str) -> String {
     }
 }
 
-/// The outcome of parsing a `papr://` deep link.
+/// The outcome of parsing a `zenrssreader://` deep link.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DeepLink {
-    /// `papr://subscribe?url=<encoded feed url>` — subscribe to a feed.
+    /// `zenrssreader://subscribe?url=<encoded feed url>` — subscribe to a feed.
     Subscribe { url: String },
 }
 
-/// Parse a `papr://subscribe?url=<encoded>` deep link into a [`DeepLink`].
+/// Parse a `zenrssreader://subscribe?url=<encoded>` deep link into a [`DeepLink`].
 ///
 /// Pure and total: returns `None` for anything that is not a well-formed
 /// subscribe link — wrong scheme, wrong host/action, a missing or empty `url`
@@ -185,12 +182,12 @@ pub fn parse_deep_link(input: &str) -> Option<DeepLink> {
         return None;
     }
     let parsed = url::Url::parse(trimmed).ok()?;
-    if parsed.scheme() != "papr" {
+    if parsed.scheme() != "zenrssreader" {
         return None;
     }
-    // Tauri delivers custom-scheme links as `papr://subscribe?...`, so the
+    // Tauri delivers custom-scheme links as `zenrssreader://subscribe?...`, so the
     // action lands in the host component. Accept it in the path too
-    // (`papr:///subscribe`) for robustness across platforms.
+    // (`zenrssreader:///subscribe`) for robustness across platforms.
     let action = match parsed.host_str() {
         Some(h) if !h.is_empty() => h.to_string(),
         _ => parsed.path().trim_matches('/').to_string(),
@@ -228,8 +225,16 @@ mod tests {
         // Every entry must have the required, non-empty fields.
         for e in &dir {
             assert!(!e.title.is_empty(), "entry missing title");
-            assert!(e.feed_url.starts_with("http"), "bad feed url: {}", e.feed_url);
-            assert!(!e.category.is_empty(), "entry missing category: {}", e.title);
+            assert!(
+                e.feed_url.starts_with("http"),
+                "bad feed url: {}",
+                e.feed_url
+            );
+            assert!(
+                !e.category.is_empty(),
+                "entry missing category: {}",
+                e.title
+            );
             assert!(!e.lang.is_empty(), "entry missing lang: {}", e.title);
         }
     }
@@ -250,7 +255,11 @@ mod tests {
         let dir = directory();
         let mut seen = std::collections::HashSet::new();
         for e in &dir {
-            assert!(seen.insert(&e.feed_url), "duplicate feed url: {}", e.feed_url);
+            assert!(
+                seen.insert(&e.feed_url),
+                "duplicate feed url: {}",
+                e.feed_url
+            );
         }
     }
 
@@ -277,8 +286,10 @@ mod tests {
         let zh = search_directory("", "zh");
         assert!(!zh.is_empty());
         assert!(zh.iter().all(|r| r.from_directory));
-        let en_titles: std::collections::HashSet<_> =
-            search_directory("", "en").into_iter().map(|r| r.title).collect();
+        let en_titles: std::collections::HashSet<_> = search_directory("", "en")
+            .into_iter()
+            .map(|r| r.title)
+            .collect();
         assert!(
             zh.iter().all(|r| !en_titles.contains(&r.title)),
             "zh slice must not contain English feeds"
@@ -390,7 +401,7 @@ mod tests {
 
     #[test]
     fn deep_link_basic_subscribe() {
-        let link = parse_deep_link("papr://subscribe?url=https://example.com/feed.xml");
+        let link = parse_deep_link("zenrssreader://subscribe?url=https://example.com/feed.xml");
         assert_eq!(
             link,
             Some(DeepLink::Subscribe {
@@ -402,7 +413,7 @@ mod tests {
     #[test]
     fn deep_link_decodes_percent_encoding() {
         let link = parse_deep_link(
-            "papr://subscribe?url=https%3A%2F%2Fexample.com%2Ffeed%3Fa%3D1%26b%3D2",
+            "zenrssreader://subscribe?url=https%3A%2F%2Fexample.com%2Ffeed%3Fa%3D1%26b%3D2",
         );
         assert_eq!(
             link,
@@ -414,8 +425,8 @@ mod tests {
 
     #[test]
     fn deep_link_accepts_action_in_path() {
-        // `papr:///subscribe?...` — action in the path rather than the host.
-        let link = parse_deep_link("papr:///subscribe?url=https://example.com/feed.xml");
+        // `zenrssreader:///subscribe?...` — action in the path rather than the host.
+        let link = parse_deep_link("zenrssreader:///subscribe?url=https://example.com/feed.xml");
         assert_eq!(
             link,
             Some(DeepLink::Subscribe {
@@ -439,20 +450,20 @@ mod tests {
     #[test]
     fn deep_link_rejects_unknown_action() {
         assert_eq!(
-            parse_deep_link("papr://unsubscribe?url=https://example.com"),
+            parse_deep_link("zenrssreader://unsubscribe?url=https://example.com"),
             None
         );
     }
 
     #[test]
     fn deep_link_rejects_missing_url_param() {
-        assert_eq!(parse_deep_link("papr://subscribe"), None);
-        assert_eq!(parse_deep_link("papr://subscribe?foo=bar"), None);
+        assert_eq!(parse_deep_link("zenrssreader://subscribe"), None);
+        assert_eq!(parse_deep_link("zenrssreader://subscribe?foo=bar"), None);
     }
 
     #[test]
     fn deep_link_rejects_empty_url_param() {
-        assert_eq!(parse_deep_link("papr://subscribe?url="), None);
+        assert_eq!(parse_deep_link("zenrssreader://subscribe?url="), None);
     }
 
     #[test]

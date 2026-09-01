@@ -12,11 +12,7 @@ interface CodedError {
 }
 
 function isCoded(e: unknown): e is CodedError {
-  return (
-    typeof e === "object" &&
-    e !== null &&
-    typeof (e as { code?: unknown }).code === "string"
-  );
+  return typeof e === "object" && e !== null && typeof (e as { code?: unknown }).code === "string";
 }
 
 /** A user-facing, localised message for any caught error. */

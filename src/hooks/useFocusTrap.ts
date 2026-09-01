@@ -4,8 +4,8 @@
 import { useEffect, type RefObject } from "react";
 
 const FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]), ' +
-  'select:not([disabled]), textarea:not([disabled]), ' +
+  "a[href], button:not([disabled]), input:not([disabled]), " +
+  "select:not([disabled]), textarea:not([disabled]), " +
   '[tabindex]:not([tabindex="-1"])';
 
 /**
@@ -29,10 +29,7 @@ function isVisible(el: HTMLElement): boolean {
  * off (rather than mounting fresh each time) re-arm the trap: the effect
  * re-runs when it flips, by which point `ref` points at the now-rendered node.
  */
-export function useFocusTrap(
-  ref: RefObject<HTMLElement | null>,
-  enabled = true,
-) {
+export function useFocusTrap(ref: RefObject<HTMLElement | null>, enabled = true) {
   useEffect(() => {
     if (!enabled) return;
     const el = ref.current;
@@ -41,9 +38,7 @@ export function useFocusTrap(
       if (e.key !== "Tab") return;
       // Only visible elements can take focus — a hidden match (the dialog's
       // `display:none` file input) as first/last would break the wrap-around.
-      const items = Array.from(
-        el.querySelectorAll<HTMLElement>(FOCUSABLE),
-      ).filter(isVisible);
+      const items = Array.from(el.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(isVisible);
       if (items.length === 0) return;
       const first = items[0];
       const last = items[items.length - 1];

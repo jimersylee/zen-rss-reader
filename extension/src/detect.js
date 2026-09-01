@@ -1,11 +1,11 @@
 /**
- * Feed detection for the Papr browser extension.
+ * Feed detection for the ZenRssReader browser extension.
  *
  * This module is deliberately pure and dependency-free so it works in two
  * environments with no build step:
  *   1. as a CommonJS module imported by the Node/vitest test suite, and
  *   2. as a plain classic script loaded by the extension's content script,
- *      where it hangs its API off `globalThis.PaprDetect`.
+ *      where it hangs its API off `globalThis.ZenRssReaderDetect`.
  *
  * It contains no `import`/`export` keywords (which would be a syntax error in
  * a classic browser script) — the dual-mode wiring at the bottom uses a
@@ -24,7 +24,7 @@
   const api = factory();
   // Classic-script / extension use: expose a global.
   if (typeof globalThis !== "undefined") {
-    globalThis.PaprDetect = api;
+    globalThis.ZenRssReaderDetect = api;
   }
   // Node / vitest use: CommonJS export.
   if (typeof module !== "undefined" && module.exports) {
@@ -95,8 +95,7 @@
   function youtubeChannelFeed(channelId) {
     return {
       title: "YouTube channel",
-      feedUrl:
-        "https://www.youtube.com/feeds/videos.xml?channel_id=" + channelId,
+      feedUrl: "https://www.youtube.com/feeds/videos.xml?channel_id=" + channelId,
       kind: "youtube",
     };
   }
@@ -161,17 +160,14 @@
         if (list && /^[A-Za-z0-9_-]{13,}$/.test(list)) {
           return {
             title: "YouTube playlist",
-            feedUrl:
-              "https://www.youtube.com/feeds/videos.xml?playlist_id=" + list,
+            feedUrl: "https://www.youtube.com/feeds/videos.xml?playlist_id=" + list,
             kind: "youtube",
           };
         }
       }
       const isVanity =
         !!segments[0] &&
-        (segments[0].charAt(0) === "@" ||
-          segments[0] === "c" ||
-          segments[0] === "user");
+        (segments[0].charAt(0) === "@" || segments[0] === "c" || segments[0] === "user");
       if (isVanity && pageHtml) {
         const id = extractYoutubeChannelId(pageHtml);
         if (id) return youtubeChannelFeed(id);
@@ -181,11 +177,7 @@
 
     // ── Reddit ──
     if (host === "reddit.com" || host.endsWith(".reddit.com")) {
-      if (
-        segments[0] === "r" &&
-        segments[1] &&
-        /^[A-Za-z0-9_]+$/.test(segments[1])
-      ) {
+      if (segments[0] === "r" && segments[1] && /^[A-Za-z0-9_]+$/.test(segments[1])) {
         const sub = segments[1];
         const listing = segments[2];
         if (!listing) {
@@ -198,8 +190,7 @@
         if (REDDIT_LISTINGS.indexOf(listing) !== -1) {
           return {
             title: "r/" + sub + "/" + listing,
-            feedUrl:
-              "https://www.reddit.com/r/" + sub + "/" + listing + "/.rss",
+            feedUrl: "https://www.reddit.com/r/" + sub + "/" + listing + "/.rss",
             kind: "reddit",
           };
         }
@@ -208,11 +199,7 @@
     }
 
     // ── Mastodon: a profile is exactly one "@"-prefixed path segment. ──
-    if (
-      segments.length === 1 &&
-      segments[0].charAt(0) === "@" &&
-      segments[0].length > 1
-    ) {
+    if (segments.length === 1 && segments[0].charAt(0) === "@" && segments[0].length > 1) {
       if (segments[0].slice(-4) === ".rss") return null;
       return {
         title: segments[0],
@@ -247,9 +234,9 @@
     return results;
   }
 
-  /** Build a `papr://subscribe?url=…` deep link for a detected feed URL. */
+  /** Build a `zenrssreader://subscribe?url=…` deep link for a detected feed URL. */
   function buildSubscribeLink(feedUrl) {
-    return "papr://subscribe?url=" + encodeURIComponent(feedUrl);
+    return "zenrssreader://subscribe?url=" + encodeURIComponent(feedUrl);
   }
 
   return {

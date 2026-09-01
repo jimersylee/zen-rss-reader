@@ -51,12 +51,7 @@ export const useTranslationJobs = create<TranslationState>((set, get) => {
       // An identical job already streaming — leave it alone. A job for a
       // different language/engine (or a finished one) is replaced below so the
       // new choice takes effect.
-      if (
-        cur?.status === "translating" &&
-        cur.lang === lang &&
-        cur.engine === engine
-      )
-        return;
+      if (cur?.status === "translating" && cur.lang === lang && cur.engine === engine) return;
       set((s) => ({
         jobs: {
           ...s.jobs,
@@ -81,9 +76,7 @@ export const useTranslationJobs = create<TranslationState>((set, get) => {
         .then(() => {
           // The `done` event normally flips the status; guard against it being
           // missed so a finished job never sticks on "translating".
-          patch(articleId, (j) =>
-            j.status === "translating" ? { ...j, status: "done" } : j,
-          );
+          patch(articleId, (j) => (j.status === "translating" ? { ...j, status: "done" } : j));
         })
         .catch((err) => {
           patch(articleId, (j) => ({ ...j, status: "error" }));
