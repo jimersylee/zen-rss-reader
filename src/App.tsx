@@ -25,27 +25,17 @@ import PlayerBar from "./components/PlayerBar";
 import ResizeHandle from "./components/ResizeHandle";
 import Icon from "./components/Icon";
 import { PANEL_BOUNDS } from "./store";
+import { THEMES } from "./themes";
 
 // The single accent — terracotta clay. "One accent, used rarely"; it is a
 // fixed brand mark, not a user preference, so it lives here rather than in
 // Settings. (Ported from the design prototype's ACCENTS.clay.)
-const ACCENT = {
-  accent: "oklch(0.60 0.13 38)",
-  soft: "oklch(0.94 0.04 50)",
-  ink: "oklch(0.42 0.10 38)",
-  dAccent: "oklch(0.74 0.13 45)",
-  dSoft: "oklch(0.32 0.06 40)",
-  dInk: "oklch(0.80 0.10 45)",
-};
-
 // Native window backing for the dark theme. The webview is made non-opaque in
 // lib.rs (to kill the white resize flash), so a resize exposes THIS colour in
 // the strip the webview hasn't repainted yet. Use `--reader` (the widest pane,
 // 1fr, and the right/bottom edge a resize is dragged from) rather than the
 // darker `--paper` floor — otherwise the exposed strip flashes a shade darker
 // than the reader content it sits next to. Mirrors `--reader` in styles.css.
-const DARK_BACKING = "#1D1E1F";
-
 export default function App() {
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -89,20 +79,18 @@ export default function App() {
   // ── apply appearance to the document root ──
   useEffect(() => {
     const root = document.documentElement;
-    root.dataset.theme = theme;
+    const definition = THEMES[theme];
+    root.dataset.theme = definition.mode;
+    root.dataset.themeId = definition.id;
     root.dataset.density = density;
-    const a = ACCENT;
-    const dark = theme === "dark";
-    root.style.setProperty("--accent", dark ? a.dAccent : a.accent);
-    root.style.setProperty("--accent-soft", dark ? a.dSoft : a.soft);
-    root.style.setProperty("--accent-ink", dark ? a.dInk : a.ink);
+    for (const [name, value] of Object.entries(definition.colors)) root.style.setProperty(name, value);
     // Keep the native window backing on the themed reader colour. The webview is
     // non-opaque on macOS (see lib.rs), so a live resize exposes the NSWindow
     // background in the strip the webview hasn't repainted yet — use --reader so
     // that strip blends with the reader pane it sits next to. (On Win/Linux the
     // webview is opaque, so setBackgroundColor here mainly covers their own
     // resize/overscroll; harmless on macOS where it's the NSWindow colour.)
-    const backing = dark ? DARK_BACKING : "#FBF9F3";
+    const backing = definition.nativeBackground;
     getCurrentWindow()
       .setBackgroundColor(backing)
       .catch(() => {});
@@ -306,7 +294,7 @@ export default function App() {
         markAllRead();
         break;
       case "toggle-theme":
-        useUi.getState().setTheme(theme === "light" ? "dark" : "light");
+        useUi.getState().setTheme(theme === "zen-light" ? "zen-dark" : "zen-light");
         break;
       case "toggle-focus":
         useUi.getState().setFocusMode(!useUi.getState().focusMode);
@@ -515,7 +503,7 @@ export default function App() {
         case "d":
           if (e.shiftKey) {
             e.preventDefault();
-            st.setTheme(st.theme === "light" ? "dark" : "light");
+            st.setTheme(st.theme === "zen-light" ? "zen-dark" : "zen-light");
           }
           break;
         case "escape":

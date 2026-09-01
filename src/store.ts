@@ -6,8 +6,9 @@ import { create } from "zustand";
 import i18n from "./i18n";
 import * as api from "./api";
 import type { ArticleQuery } from "./types";
+import type { ThemeId } from "./themes";
 
-export type Theme = "light" | "dark";
+export type Theme = ThemeId;
 /** Background depth for the dark theme. Only meaningful while `theme` is
  *  "dark"; lets users pick a darker paper than the default warm charcoal. */
 export type Density = "compact" | "cozy" | "spacious";
@@ -232,7 +233,12 @@ export const useUi = create<UiState>((set) => ({
   sortOldest: false,
   listAnchor: 0,
 
-  theme: ls.oneOf<Theme>("theme", ["light", "dark"], "light"),
+  theme: (() => {
+    const value = localStorage.getItem("theme");
+    if (value === "light") return "zen-light" as Theme;
+    if (value === "dark") return "zen-dark" as Theme;
+    return ls.oneOf<Theme>("theme", ["zen-light", "zen-dark", "catppuccin-latte", "catppuccin-frappe", "catppuccin-macchiato", "catppuccin-mocha"], "zen-light");
+  })(),
   density: ls.oneOf<Density>("density", ["compact", "cozy", "spacious"], "cozy"),
   viewMode: ls.oneOf<ViewMode>("viewMode", ["list", "card"], "list"),
   readerFont: loadReaderFont(),

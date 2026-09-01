@@ -19,6 +19,7 @@ import Icon, { type IconName } from "./Icon";
 import ConfirmDialog from "./ConfirmDialog";
 import FeedAvatar from "./FeedAvatar";
 import PromptDialog from "./PromptDialog";
+import { THEME_IDS, THEMES, type ThemeId } from "../themes";
 
 interface Props {
   onClose: () => void;
@@ -563,13 +564,10 @@ function AppearanceSection() {
           label={t("settings.appearance.appearance")}
           desc={t("settings.appearance.appearanceDesc")}
         >
-          <Segmented
+          <Select
             value={theme}
-            options={[
-              { value: "light", label: t("settings.appearance.light") },
-              { value: "dark", label: t("settings.appearance.dark") },
-            ]}
-            onChange={setTheme}
+            options={THEME_IDS.map((id) => ({ value: id, label: THEMES[id].label }))}
+            onChange={(value) => setTheme(value as ThemeId)}
           />
         </Row>
       </div>
