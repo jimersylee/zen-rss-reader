@@ -28,8 +28,9 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, Once, OnceLock};
-use tauri::{Emitter, Manager};
+use tauri::{Emitter, Manager, PhysicalSize};
 use tauri_plugin_opener::OpenerExt;
+use tauri_plugin_window_state::{StateFlags, WindowExt};
 
 const DEBUG_LOG_LIMIT: usize = 1000;
 
@@ -171,6 +172,66 @@ fn handle_deep_links(app: &tauri::AppHandle, urls: &[String]) {
 /// Number of read-only connections in the UI query pool.
 const READ_POOL_SIZE: usize = 4;
 
+fn fitted_window_size(
+    window: PhysicalSize<u32>,
+    work_area: PhysicalSize<u32>,
+) -> Option<PhysicalSize<u32>> {
+    if window.width <= work_area.width && window.height <= work_area.height {
+        return None;
+    }
+
+    Some(PhysicalSize::new(
+        window.width.min(work_area.width.saturating_mul(9) / 10),
+        window.height.min(work_area.height.saturating_mul(9) / 10),
+    ))
+}
+
+fn restore_main_window(window: &tauri::WebviewWindow) {
+    if let Err(error) = window.restore_state(StateFlags::all()) {
+        log::warn!("failed to restore main window state: {error}");
+        return;
+    }
+
+    if window.is_maximized().unwrap_or_default() || window.is_fullscreen().unwrap_or_default() {
+        return;
+    }
+
+    let monitor = window
+        .current_monitor()
+        .ok()
+        .flatten()
+        .or_else(|| window.primary_monitor().ok().flatten());
+    let (Ok(size), Some(monitor)) = (window.outer_size(), monitor) else {
+        return;
+    };
+    let Some(size) = fitted_window_size(size, monitor.work_area().size) else {
+        return;
+    };
+
+    if let Err(error) = window.set_size(size) {
+        log::warn!("failed to fit main window to the current monitor: {error}");
+        return;
+    }
+    let _ = window.center();
+}
+
+#[cfg(test)]
+mod window_size_tests {
+    use super::*;
+
+    #[test]
+    fn only_shrinks_windows_that_do_not_fit_the_work_area() {
+        assert_eq!(
+            fitted_window_size(PhysicalSize::new(1280, 820), PhysicalSize::new(1920, 1080)),
+            None
+        );
+        assert_eq!(
+            fitted_window_size(PhysicalSize::new(2560, 1440), PhysicalSize::new(1440, 900)),
+            Some(PhysicalSize::new(1296, 810))
+        );
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     init_logger();
@@ -179,7 +240,11 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_os::init())
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .skip_initial_state("main")
+                .build(),
+        )
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -198,6 +263,13 @@ pub fn run() {
     let app = builder
         .setup(|app| {
             attach_log_handle(app.handle().clone());
+            // The window-state plugin persists physical pixels. A window saved
+            // on a larger or higher-DPI display can therefore be bigger than
+            // the next display's work area. Restore it here (instead of the
+            // plugin's automatic hook), then shrink only oversized windows.
+            if let Some(window) = app.get_webview_window("main") {
+                restore_main_window(&window);
+            }
             // ── Database ──────────────────────────────────────────────
             let data_dir = app.path().app_data_dir().expect("resolve app data dir");
             fs::create_dir_all(&data_dir).ok();
