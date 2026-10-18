@@ -630,6 +630,14 @@
     }
   },
   "update": {
+    "checkSourceButton": "检查提交更新",
+    "commitUnknown": "此构建未包含 commit ID，无法检查提交更新",
+    "sourceAvailable": "有新提交 {{commit}}，需重新打包安装",
+    "viewChanges": "查看提交变更",
+    "sourceCurrent": "当前构建已基于 main 的最新提交",
+    "sourceCurrentDirty": "当前构建基于 main 的最新提交，但包含未提交修改",
+    "localAhead": "当前构建领先于远端 main，无需更新",
+    "localDiverged": "当前构建与远端 main 已分叉，请手动确认变更",
     "available": "有新版本 — v{{version}}",
     "install": "更新并重启",
     "installing": "正在下载更新…",

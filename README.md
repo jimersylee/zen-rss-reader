@@ -46,6 +46,24 @@ the CLI can never drift apart.
 All packages live on the **[latest release](https://github.com/jimersylee/zenrssreader/releases/latest)**.
 The macOS builds are Developer ID signed and notarized.
 
+### Local builds and commit identity
+
+Run `pnpm build-local-app` to build a local DMG. The frontend automatically
+embeds the checkout's full Git commit at build time; Settings / About display
+its short ID. A `-dirty` suffix identifies builds containing uncommitted changes.
+No Git installation or repository is needed to display the ID after installation.
+
+Local builds check updates against the ancestry of remote `main`, rather than
+the shared package version. New source commits prompt you to view the diff and
+rebuild locally; they do not download a release binary for an unrelated commit.
+An ahead or diverged local checkout is not treated as an available upgrade.
+Builds made without Git metadata display `unknown` and do not guess an ID.
+
+Standard release builds still display their semantic version plus commit and
+use Tauri's signed binary updater. This keeps installer metadata and signature
+verification unchanged. The local mode is selected by
+`src-tauri/tauri.local.conf.json` (`pnpm build --mode desktop-local`).
+
 ---
 
 ## `zenrssreader` — your feeds, handed to your agent

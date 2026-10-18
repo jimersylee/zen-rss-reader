@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "build-local-app": "tauri build --bundles dmg --config src-tauri/tauri.local.conf.json",
-    "test": "vitest run"
+    "test": "node --test scripts/build-info.test.mjs && vitest run"
   },
   "dependencies": {
     "@fontsource-variable/inter-tight": "^5.2.7",

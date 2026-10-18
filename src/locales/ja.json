@@ -630,6 +630,14 @@
     }
   },
   "update": {
+    "checkSourceButton": "コミット更新を確認",
+    "commitUnknown": "このビルドには commit ID がないため更新を確認できません",
+    "sourceAvailable": "新しいコミット {{commit}} があります。再ビルドしてインストールしてください",
+    "viewChanges": "変更を確認",
+    "sourceCurrent": "このビルドは main の最新コミットに基づいています",
+    "sourceCurrentDirty": "main の最新コミットに基づきますが、未コミットの変更を含みます",
+    "localAhead": "このビルドはリモート main より先に進んでいます",
+    "localDiverged": "リモート main と分岐しています。変更を手動で確認してください",
     "available": "アップデートがあります — v{{version}}",
     "install": "更新して再起動",
     "installing": "アップデートをダウンロード中…",

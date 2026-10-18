@@ -630,6 +630,14 @@
     }
   },
   "update": {
+    "checkSourceButton": "Check commit updates",
+    "commitUnknown": "This build has no commit ID; source update checks are unavailable",
+    "sourceAvailable": "New commit {{commit}} available; rebuild and install locally",
+    "viewChanges": "View changes",
+    "sourceCurrent": "This build is based on the latest main commit",
+    "sourceCurrentDirty": "Based on the latest main commit, with uncommitted changes",
+    "localAhead": "This build is ahead of remote main; no update needed",
+    "localDiverged": "This build has diverged from remote main; review changes manually",
     "available": "Update available — v{{version}}",
     "install": "Update & restart",
     "installing": "Downloading update…",

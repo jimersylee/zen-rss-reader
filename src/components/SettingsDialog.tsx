@@ -12,6 +12,7 @@ import { feedHost } from "../lib/feedMeta";
 import { modKey, modCombo } from "../lib/platform";
 import { reportError } from "../toast";
 import { checkForUpdates } from "../lib/updater";
+import { buildInfo, commitLabel } from "../lib/buildInfo";
 import { downloadFile } from "../lib/download";
 import { NO_AUTOCORRECT } from "../lib/inputProps";
 import type { Feed, Rule, RuleAction, RuleField, RulePreview } from "../types";
@@ -45,14 +46,13 @@ const SECTIONS: { id: string; labelKey: string; icon: IconName }[] = [
   { id: "about", labelKey: "settings.nav.about", icon: "sparkle" },
 ];
 
-/** The app version read from the Tauri bundle config at runtime, cached so the
- *  one IPC round-trip is shared between the sidebar footer and the About pane.
- *  Sourcing it live keeps the displayed version from drifting out of sync with
- *  `tauri.conf.json` the way a hardcoded string does on every release bump. */
+/** Release installer version. Local builds use Vite's embedded commit instead
+ * of an IPC round trip to the unchanged package semver. */
 let versionPromise: Promise<string> | null = null;
 function useAppVersion(): string {
   const [version, setVersion] = useState("");
   useEffect(() => {
+    if (buildInfo.local) return;
     versionPromise ??= getVersion().catch(() => "");
     let live = true;
     versionPromise.then((v) => {
@@ -130,7 +130,9 @@ export default function SettingsDialog({ onClose, onToast, initialSection, onAdd
             </button>
           ))}
           <div className="settings-nav-spacer" />
-          <div className="settings-version">ZenRssReader{version && ` ${version}`}</div>
+          <div className="settings-version" title={buildInfo.commit ?? undefined}>
+            ZenRssReader {buildInfo.local ? commitLabel : `${version} (${commitLabel})`}
+          </div>
         </div>
 
         <div className="settings-content">
@@ -2182,9 +2184,13 @@ function AboutSection() {
       </div>
       <h1 className="app-name">ZenRssReader</h1>
       <p className="tagline">{t("settings.about.tagline")}</p>
-      <div className="version">Version{version && ` ${version}`}</div>
+      <div className="version" title={buildInfo.commit ?? undefined}>
+        {buildInfo.local ? `Commit ${commitLabel}` : `Version ${version} · ${commitLabel}`}
+      </div>
       <button className="s-btn about-update" onClick={onCheck} disabled={checking}>
-        {checking ? t("update.checking") : t("update.checkButton")}
+        {checking
+          ? t("update.checking")
+          : t(buildInfo.local ? "update.checkSourceButton" : "update.checkButton")}
       </button>
       <p className="credits">
         {t("settings.about.creditsFonts")}

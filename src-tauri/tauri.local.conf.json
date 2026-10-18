@@ -1,5 +1,8 @@
 {
   "bundle": {
     "createUpdaterArtifacts": false
+  },
+  "build": {
+    "beforeBuildCommand": "pnpm build --mode desktop-local"
   }
 }

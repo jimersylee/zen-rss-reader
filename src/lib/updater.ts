@@ -1,10 +1,13 @@
-// In-app auto-update (desktop only).
+// Local builds check source commits; release builds keep signed binary updates.
 //
 // `check()` hits the GitHub release feed declared in tauri.conf.json, verifies
 // the bundle signature against the embedded public key, and reports whether a
 // newer version exists. When the user accepts, `downloadAndInstall()` fetches
 // and applies it, then `relaunch()` restarts into the new build.
 
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { buildInfo } from "./buildInfo";
+import { checkSourceCommit } from "./sourceUpdates";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import i18n from "../i18n";
@@ -22,6 +25,10 @@ export async function checkForUpdates({ silent }: { silent: boolean }): Promise<
   if (inFlight) return;
   inFlight = true;
   try {
+    if (buildInfo.local) {
+      await checkLocalBuild(silent);
+      return;
+    }
     const update = await check();
     if (update) {
       offerUpdate(update);
@@ -34,6 +41,39 @@ export async function checkForUpdates({ silent }: { silent: boolean }): Promise<
     if (!silent) reportError(e);
   } finally {
     inFlight = false;
+  }
+}
+
+/** Local DMGs are built from source, not published for every commit. Never
+ * install an unrelated GitHub release over them based on the shared semver. */
+async function checkLocalBuild(silent: boolean): Promise<void> {
+  if (!buildInfo.commit) {
+    if (!silent) toast.show(i18n.t("update.commitUnknown"));
+    return;
+  }
+  const result = await checkSourceCommit(buildInfo.commit);
+  if (result.status === "ahead") {
+    useToasts.getState().push({
+      text: i18n.t("update.sourceAvailable", { commit: result.commit.slice(0, 7) }),
+      tone: "default",
+      duration: 3_600_000,
+      action: {
+        label: i18n.t("update.viewChanges"),
+        run: () => {
+          void openUrl(result.url).catch(reportError);
+        },
+      },
+    });
+  } else if (!silent) {
+    const key =
+      result.status === "behind"
+        ? "update.localAhead"
+        : result.status === "diverged"
+          ? "update.localDiverged"
+          : buildInfo.dirty
+            ? "update.sourceCurrentDirty"
+            : "update.sourceCurrent";
+    toast.show(i18n.t(key));
   }
 }
 
