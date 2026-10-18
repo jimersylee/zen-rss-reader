@@ -26,6 +26,8 @@ import ResizeHandle from "./components/ResizeHandle";
 import Icon from "./components/Icon";
 import { PANEL_BOUNDS } from "./store";
 import { THEMES } from "./themes";
+import KeyboardHints from "./components/KeyboardHints";
+import { isEditing } from "./lib/keyboard";
 
 // The single accent — terracotta clay. "One accent, used rarely"; it is a
 // fixed brand mark, not a user preference, so it lives here rather than in
@@ -83,7 +85,8 @@ export default function App() {
     root.dataset.theme = definition.mode;
     root.dataset.themeId = definition.id;
     root.dataset.density = density;
-    for (const [name, value] of Object.entries(definition.colors)) root.style.setProperty(name, value);
+    for (const [name, value] of Object.entries(definition.colors))
+      root.style.setProperty(name, value);
     // Keep the native window backing on the themed reader colour. The webview is
     // non-opaque on macOS (see lib.rs), so a live resize exposes the NSWindow
     // background in the strip the webview hasn't repainted yet — use --reader so
@@ -332,8 +335,8 @@ export default function App() {
   // ── global keyboard shortcuts (design app.jsx parity) ──
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      const inField = tag === "INPUT" || tag === "TEXTAREA";
+      if (e.defaultPrevented || e.isComposing || e.keyCode === 229) return;
+      const inField = isEditing(e.target);
       const mod = e.metaKey || e.ctrlKey;
 
       // The modifier-key shortcuts (⌘K / ⌘, / ⌘R) are *application-global* —
@@ -407,7 +410,7 @@ export default function App() {
         setDebugLogs((v) => !v);
         return;
       }
-      if (mod) return;
+      if (mod || e.altKey) return;
 
       // Past this point only the single-key list/reader shortcuts remain —
       // a bare "j" / "s" / "a" etc. Those must never fire while the user is
@@ -522,6 +525,7 @@ export default function App() {
 
   return (
     <>
+      <KeyboardHints />
       <div className="app-shell">
         <div className={`window ${focusMode ? "focus" : ""}`}>
           <Sidebar

@@ -1,56 +1,60 @@
-// Contain keyboard focus within a modal dialog while it is open, so Tab can't
-// walk into the (visually obscured) background behind it.
-
-import { useEffect, type RefObject } from "react";
+// Contain Tab navigation within the topmost dialog, and restore its trigger.
+import { useEffect, useRef, type RefObject } from "react";
+import { keyboardScope } from "../lib/keyboard";
 
 const FOCUSABLE =
   "a[href], button:not([disabled]), input:not([disabled]), " +
   "select:not([disabled]), textarea:not([disabled]), " +
   '[tabindex]:not([tabindex="-1"])';
 
-/**
- * True when `el` can actually receive focus right now. The `FOCUSABLE`
- * selector matches by tag/attribute alone, so it also picks up elements that
- * are not visible — e.g. the `display:none` hidden file `<input>` the
- * Settings dialog uses for OPML import. `.focus()` on such an element is a
- * silent no-op, so if it were treated as the trap's first/last item the
- * Tab/Shift+Tab wrap-around would land focus nowhere. `getClientRects()` is
- * empty for any element rendered with `display:none` (and for one inside a
- * collapsed ancestor), which reliably excludes them.
- */
 function isVisible(el: HTMLElement): boolean {
-  return el.getClientRects().length > 0;
+  return (
+    el.getClientRects().length > 0 &&
+    !el.closest('[inert], [hidden], [aria-hidden="true"]') &&
+    !el.matches(':disabled, [aria-disabled="true"]') &&
+    getComputedStyle(el).visibility === "visible"
+  );
 }
 
-/**
- * Trap Tab / Shift+Tab inside `ref`'s subtree while active.
- *
- * `enabled` lets a component that stays mounted but toggles its modal on and
- * off (rather than mounting fresh each time) re-arm the trap: the effect
- * re-runs when it flips, by which point `ref` points at the now-rendered node.
- */
 export function useFocusTrap(ref: RefObject<HTMLElement | null>, enabled = true) {
+  const triggerRef = useRef<HTMLElement | null>(null);
+  const wasEnabled = useRef(false);
+  // Capture during the opening render, before a child's autoFocus takes over.
+  if (enabled && !wasEnabled.current) triggerRef.current = document.activeElement as HTMLElement;
+  wasEnabled.current = enabled;
   useEffect(() => {
     if (!enabled) return;
     const el = ref.current;
     if (!el) return;
+    const trigger = triggerRef.current;
+    const items = () => Array.from(el.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(isVisible);
+    // Respect existing autoFocus (rename input / safe Cancel button). Otherwise
+    // Settings used to open with focus still on the obscured main screen.
+    if (!el.contains(document.activeElement)) items()[0]?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Tab") return;
-      // Only visible elements can take focus — a hidden match (the dialog's
-      // `display:none` file input) as first/last would break the wrap-around.
-      const items = Array.from(el.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(isVisible);
-      if (items.length === 0) return;
-      const first = items[0];
-      const last = items[items.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
+      if (e.key !== "Tab" || e.defaultPrevented) return;
+      const scope = keyboardScope();
+      if (scope !== el && !scope.contains(el)) return;
+      const controls = items();
+      if (!controls.length) return;
+      const first = controls[0],
+        last = controls[controls.length - 1];
+      const outside = !el.contains(document.activeElement);
+      if (e.shiftKey && (outside || document.activeElement === first)) {
         e.preventDefault();
         last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
+      } else if (!e.shiftKey && (outside || document.activeElement === last)) {
         e.preventDefault();
         first.focus();
       }
     };
-    el.addEventListener("keydown", onKey);
-    return () => el.removeEventListener("keydown", onKey);
+    // Capture on document also recovers focus accidentally left outside a modal.
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("keydown", onKey, true);
+      if (el.contains(document.activeElement) || document.activeElement === document.body) {
+        if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+      }
+    };
   }, [ref, enabled]);
 }

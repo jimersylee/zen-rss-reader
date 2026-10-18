@@ -3398,3 +3398,52 @@ svg.spinning {
   opacity: 0.5;
   cursor: default;
 }
+
+/* Screen-local keyboard hints never intercept pointer input or move focus. */
+.keyboard-hints {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  pointer-events: none;
+}
+.keyboard-hint {
+  position: absolute;
+  padding: 1px 4px;
+  min-width: 17px;
+  border: 1px solid var(--accent-ink);
+  border-radius: 4px;
+  background: var(--panel-2);
+  color: var(--accent-ink);
+  box-shadow: var(--shadow-raise);
+  font: 700 12px/17px var(--mono);
+  text-align: center;
+  text-transform: uppercase;
+}
+.keyboard-hint-typed {
+  opacity: 0.4;
+}
+.keyboard-hints-status {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  padding: 9px 14px;
+  border: 1px solid var(--hair-strong);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--ink);
+  box-shadow: var(--shadow-pop);
+  font-size: 12px;
+}
+:where(button, a[href], [tabindex], input, select, textarea):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.settings-nav-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}

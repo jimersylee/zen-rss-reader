@@ -1,6 +1,7 @@
 // Thin typed wrappers over the Tauri command surface (src-tauri/src/commands.rs).
 
 import { invoke, Channel } from "@tauri-apps/api/core";
+import { articleState } from "./lib/articleState";
 import { imageBytes, type ImageBytesResponse } from "./lib/imageBytes";
 import type {
   AiEvent,
@@ -98,7 +99,7 @@ export const listArticles = (
     oldestFirst,
     limit,
     offset,
-  });
+  }).then((articles) => articles.map(articleState.overlay));
 
 /** 0-based position of `articleId` in the list these filters produce, or null
  *  when it isn't in that list (filtered out / different feed). Drives paging the
@@ -116,7 +117,8 @@ export const articleIndex = (
     articleId,
   });
 
-export const getArticle = (id: number) => invoke<ArticleDetail>("get_article", { id });
+export const getArticle = (id: number) =>
+  invoke<ArticleDetail>("get_article", { id }).then(articleState.overlay);
 export const markRead = (id: number, read: boolean) => invoke<void>("mark_read", { id, read });
 export const markStarred = (id: number, starred: boolean) =>
   invoke<void>("mark_starred", { id, starred });

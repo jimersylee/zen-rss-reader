@@ -4,9 +4,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
 import { errorText } from "../lib/errors";
-import type { ArticleSummary } from "../types";
-
-type Patch = Partial<Pick<ArticleSummary, "isRead" | "isStarred" | "readLater">>;
+import { articleState, type ArticlePatch } from "../lib/articleState";
 
 /**
  * Shared article mutations. `onError` (when supplied) is called with a
@@ -16,41 +14,8 @@ type Patch = Partial<Pick<ArticleSummary, "isRead" | "isStarred" | "readLater">>
 export function useArticleActions(onError?: (msg: string) => void) {
   const qc = useQueryClient();
 
-  /** Optimistically patch an article across every cache that may hold it. */
-  const patch = (id: number, p: Patch) => {
-    // Paginated browse lists.
-    qc.setQueriesData({ queryKey: ["articles"] }, (old: any) => {
-      if (!old?.pages) return old;
-      return {
-        ...old,
-        pages: old.pages.map((page: ArticleSummary[]) =>
-          page.map((x) => (x.id === id ? { ...x, ...p } : x)),
-        ),
-      };
-    });
-    // Flat result arrays: hybrid search and the command-palette search.
-    const patchFlat = (old: any) =>
-      Array.isArray(old) ? old.map((x: ArticleSummary) => (x.id === id ? { ...x, ...p } : x)) : old;
-    qc.setQueriesData({ queryKey: ["search"] }, patchFlat);
-    qc.setQueriesData({ queryKey: ["cp-search"] }, patchFlat);
-    // The open article detail.
-    qc.setQueryData(["article", id], (old: any) => (old ? { ...old, ...p } : old));
-  };
-
-  const refreshLists = () => {
-    qc.invalidateQueries({ queryKey: ["counts"] });
-    qc.invalidateQueries({ queryKey: ["feeds"] });
-    // Smart views (Starred / Read Later / Unread) are each their own
-    // ["articles", …] query. The optimistic `patch` above fixes articles
-    // already in a list, but it can't add or remove rows — so a freshly
-    // starred article never appears in the Starred list. Mark every
-    // article/search list stale so it re-fetches with the correct
-    // membership when next opened. `refetchType: "none"` avoids yanking
-    // rows out of the list the user is currently looking at.
-    qc.invalidateQueries({ queryKey: ["articles"], refetchType: "none" });
-    qc.invalidateQueries({ queryKey: ["search"], refetchType: "none" });
-    qc.invalidateQueries({ queryKey: ["cp-search"], refetchType: "none" });
-  };
+  const patch = (id: number, value: ArticlePatch) => articleState.patch(qc, id, value);
+  const report = (error: unknown) => onError?.(errorText(error));
 
   // The query keys an article-state change can affect. A bare
   // `invalidateQueries()` would also refetch unrelated caches (AI summaries,
@@ -85,35 +50,11 @@ export function useArticleActions(onError?: (msg: string) => void) {
     patch,
     refreshAfterBulk,
     refreshAfterFetch,
-    async setRead(id: number, read: boolean) {
-      patch(id, { isRead: read });
-      try {
-        await api.markRead(id, read);
-        refreshLists();
-      } catch (e) {
-        patch(id, { isRead: !read });
-        onError?.(errorText(e));
-      }
-    },
-    async setStarred(id: number, starred: boolean) {
-      patch(id, { isStarred: starred });
-      try {
-        await api.markStarred(id, starred);
-        refreshLists();
-      } catch (e) {
-        patch(id, { isStarred: !starred });
-        onError?.(errorText(e));
-      }
-    },
-    async setReadLater(id: number, value: boolean) {
-      patch(id, { readLater: value });
-      try {
-        await api.markReadLater(id, value);
-        refreshLists();
-      } catch (e) {
-        patch(id, { readLater: !value });
-        onError?.(errorText(e));
-      }
-    },
+    setRead: (id: number, read: boolean) =>
+      articleState.set(qc, id, "isRead", read, () => api.markRead(id, read), report),
+    setStarred: (id: number, starred: boolean) =>
+      articleState.set(qc, id, "isStarred", starred, () => api.markStarred(id, starred), report),
+    setReadLater: (id: number, value: boolean) =>
+      articleState.set(qc, id, "readLater", value, () => api.markReadLater(id, value), report),
   };
 }

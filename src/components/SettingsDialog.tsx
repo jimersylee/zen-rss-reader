@@ -20,6 +20,7 @@ import ConfirmDialog from "./ConfirmDialog";
 import FeedAvatar from "./FeedAvatar";
 import PromptDialog from "./PromptDialog";
 import { THEME_IDS, THEMES, type ThemeId } from "../themes";
+import { keyboardScope } from "../lib/keyboard";
 
 interface Props {
   onClose: () => void;
@@ -74,7 +75,7 @@ export default function SettingsDialog({ onClose, onToast, initialSection, onAdd
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && keyboardScope() === windowRef.current) {
         e.stopPropagation();
         onClose();
       }
@@ -115,16 +116,18 @@ export default function SettingsDialog({ onClose, onToast, initialSection, onAdd
             <span className="badge">{modCombo(",")}</span>
           </div>
           {SECTIONS.map((s) => (
-            <div
+            <button
+              type="button"
               key={s.id}
               className={`settings-nav-item ${section === s.id ? "active" : ""}`}
+              aria-current={section === s.id ? "page" : undefined}
               onClick={() => setSection(s.id)}
             >
               <span className="nav-ico">
                 <Icon name={s.icon} size={15} />
               </span>
               {t(s.labelKey)}
-            </div>
+            </button>
           ))}
           <div className="settings-nav-spacer" />
           <div className="settings-version">ZenRssReader{version && ` ${version}`}</div>
@@ -139,7 +142,12 @@ export default function SettingsDialog({ onClose, onToast, initialSection, onAdd
             <Icon name="x" size={15} />
           </button>
 
-          <div className="settings-scroll">
+          <div
+            className="settings-scroll"
+            tabIndex={0}
+            data-keyboard-scroll
+            aria-label={t(cur.labelKey)}
+          >
             {section === "general" && <GeneralSection />}
             {section === "appearance" && <AppearanceSection />}
             {section === "reading" && <ReadingSection />}
@@ -1192,6 +1200,18 @@ function ShortcutsSection() {
   const { t } = useTranslation();
   const groups = [
     {
+      title: t("settings.shortcuts.keyboardAccess"),
+      items: [
+        { desc: t("settings.shortcuts.showHints"), keys: [";"] },
+        { desc: t("settings.shortcuts.showHintsInField"), keys: [modKey, "⇧", ";"] },
+        { desc: t("settings.shortcuts.switchPane"), keys: ["F6", "/", "⇧", "F6"] },
+        { desc: t("settings.shortcuts.returnToControls"), keys: [modKey, "⇧", "F6"] },
+        { desc: t("settings.shortcuts.contextMenu"), keys: ["⇧", "F10"] },
+        { desc: t("settings.shortcuts.focusControl"), keys: ["Tab", "/", "⇧", "Tab"] },
+        { desc: t("settings.shortcuts.activateControl"), keys: ["Enter", "/", "Space"] },
+      ],
+    },
+    {
       title: t("settings.shortcuts.navigation"),
       items: [
         { desc: t("settings.shortcuts.nextArticle"), keys: ["J"] },
@@ -1231,6 +1251,7 @@ function ShortcutsSection() {
   ];
   return (
     <>
+      <p className="settings-group-desc">{t("settings.shortcuts.hintsHelp")}</p>
       {groups.map((g) => (
         <div className="settings-group" key={g.title}>
           <h3 className="settings-group-title">{g.title}</h3>

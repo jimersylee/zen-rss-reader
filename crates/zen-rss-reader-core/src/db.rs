@@ -1527,20 +1527,31 @@ pub fn article_text(conn: &Connection, id: i64) -> AppResult<(String, String)> {
     Ok((title, text))
 }
 
-pub fn set_read(conn: &Connection, id: i64, read: bool) -> AppResult<()> {
-    conn.execute(
-        "UPDATE articles SET is_read = ?2 WHERE id = ?1",
-        params![id, read],
+/// Commit local state and its sync intent atomically, shared by desktop and CLI.
+fn set_local_sync_state(conn: &Connection, id: i64, field: &str, value: bool) -> AppResult<()> {
+    let column = match field {
+        "read" => "is_read",
+        "starred" => "is_starred",
+        _ => unreachable!("only read/starred are syncable article fields"),
+    };
+    let tx = conn.unchecked_transaction()?;
+    let changed = tx.execute(
+        &format!("UPDATE articles SET {column} = ?2 WHERE id = ?1"),
+        params![id, value],
     )?;
+    if changed > 0 && is_freshrss_connected(&tx) {
+        enqueue_sync(&tx, id, field, value)?;
+    }
+    tx.commit()?;
     Ok(())
 }
 
+pub fn set_read(conn: &Connection, id: i64, read: bool) -> AppResult<()> {
+    set_local_sync_state(conn, id, "read", read)
+}
+
 pub fn set_starred(conn: &Connection, id: i64, starred: bool) -> AppResult<()> {
-    conn.execute(
-        "UPDATE articles SET is_starred = ?2 WHERE id = ?1",
-        params![id, starred],
-    )?;
-    Ok(())
+    set_local_sync_state(conn, id, "starred", starred)
 }
 
 pub fn set_read_later(conn: &Connection, id: i64, v: bool) -> AppResult<()> {
@@ -1634,7 +1645,7 @@ pub fn mark_all_read(
     // Articles are queued regardless of whether they already carry a
     // `remote_id`: freshly fetched items have none until a pull matches them
     // by URL, and "mark all read" is most often run right after a refresh on
-    // exactly those items. `take_sync_queue` defers any entry whose article
+    // exactly those items. `sync_queue_to_push` defers any entry whose article
     // still lacks a remote id, so the change pushes on the sync after the id
     // is assigned — mirroring the single-article `enqueue_sync` path. The old
     // `remote_id IS NOT NULL` filter here silently dropped those changes.
@@ -2043,7 +2054,27 @@ pub fn apply_rule_to_existing(
         }
         _ => return Ok(0),
     };
-    Ok(conn.execute(&sql, params_from_iter(binds))?)
+    let tx = conn.unchecked_transaction()?;
+    if is_freshrss_connected(&tx) {
+        let sync_flag = match action {
+            "read" => Some(("read", "is_read")),
+            "star" => Some(("starred", "is_starred")),
+            _ => None,
+        };
+        if let Some((field, column)) = sync_flag {
+            tx.execute(
+                &format!(
+                    "INSERT INTO sync_queue(article_id, field, value)
+                    SELECT id, '{field}', 1 FROM articles WHERE ({where_sql}) AND {column} = 0
+                    ON CONFLICT(article_id, field) DO UPDATE SET value = 1"
+                ),
+                params_from_iter(binds.iter().cloned()),
+            )?;
+        }
+    }
+    let changed = tx.execute(&sql, params_from_iter(binds))?;
+    tx.commit()?;
+    Ok(changed)
 }
 
 /// (total unread, starred, read-later) counts for the sidebar smart folders.
@@ -2362,27 +2393,30 @@ pub fn set_remote_id(conn: &Connection, article_id: i64, remote_id: &str) -> App
     Ok(())
 }
 
-/// Apply remote read/starred state to a local article.
+/// Apply a pull without losing edits made while the server request was in
+/// flight. Read and starred are reconciled independently. Keep local intent
+/// until the remote response confirms that exact value, including failed pushes
+/// and newly imported articles that did not have a remote id at push time.
 pub fn set_sync_state(
     conn: &Connection,
     article_id: i64,
     read: bool,
     starred: bool,
 ) -> AppResult<()> {
-    conn.execute(
-        "UPDATE articles SET is_read = ?2, is_starred = ?3 WHERE id = ?1",
+    let tx = conn.unchecked_transaction()?;
+    tx.execute(
+        "UPDATE articles SET
+            is_read = COALESCE((SELECT value FROM sync_queue WHERE article_id = ?1 AND field = 'read'), ?2),
+            is_starred = COALESCE((SELECT value FROM sync_queue WHERE article_id = ?1 AND field = 'starred'), ?3)
+         WHERE id = ?1",
         params![article_id, read, starred],
     )?;
-    Ok(())
-}
-
-/// Drop queued local state for an article once the remote server has been
-/// accepted as the source of truth.
-pub fn clear_sync_queue_for_article(conn: &Connection, article_id: i64) -> AppResult<()> {
-    conn.execute(
-        "DELETE FROM sync_queue WHERE article_id = ?1",
-        params![article_id],
+    tx.execute(
+        "DELETE FROM sync_queue WHERE article_id = ?1
+         AND ((field = 'read' AND value = ?2) OR (field = 'starred' AND value = ?3))",
+        params![article_id, read, starred],
     )?;
+    tx.commit()?;
     Ok(())
 }
 
@@ -2396,17 +2430,7 @@ pub fn enqueue_sync(conn: &Connection, article_id: i64, field: &str, value: bool
     Ok(())
 }
 
-/// Article ids that still carry un-pushed local changes — their state must not
-/// be overwritten by a pull until the change has been sent.
-pub fn pending_sync_article_ids(conn: &Connection) -> AppResult<Vec<i64>> {
-    let mut stmt = conn.prepare("SELECT DISTINCT article_id FROM sync_queue")?;
-    let ids = stmt
-        .query_map([], |r| r.get(0))?
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(ids)
-}
-
-/// One pushable change drained from the sync queue.
+/// One pushable change in a snapshot of the durable sync queue.
 pub struct SyncEntry {
     pub article_id: i64,
     pub remote_id: String,
@@ -2414,11 +2438,11 @@ pub struct SyncEntry {
     pub value: bool,
 }
 
-/// Drain pushable queue entries. Only rows whose article already has a remote
-/// id are returned and removed; the rest wait for a pull to assign one. The
-/// caller MUST re-queue any entry whose push fails (see `requeue_sync`) so a
-/// network blip never silently drops a local change.
-pub fn take_sync_queue(conn: &Connection) -> AppResult<Vec<SyncEntry>> {
+/// Snapshot pushable entries, without removing durable local intent. A process
+/// exit, failed request or stale pull must not lose it. set_sync_state removes
+/// only values actually confirmed by the server; entries without remote ids
+/// remain queued until a pull can map them.
+pub fn sync_queue_to_push(conn: &Connection) -> AppResult<Vec<SyncEntry>> {
     let mut stmt = conn.prepare(
         "SELECT q.article_id, a.remote_id, q.field, q.value
          FROM sync_queue q JOIN articles a ON a.id = q.article_id
@@ -2434,24 +2458,7 @@ pub fn take_sync_queue(conn: &Connection) -> AppResult<Vec<SyncEntry>> {
             })
         })?
         .collect::<Result<_, _>>()?;
-    drop(stmt);
-    conn.execute(
-        "DELETE FROM sync_queue WHERE article_id IN
-            (SELECT id FROM articles WHERE remote_id IS NOT NULL)",
-        [],
-    )?;
     Ok(rows)
-}
-
-/// Re-insert a queue entry whose push failed. Unlike `enqueue_sync` this does
-/// not clobber a newer edit the user made on the same article during the sync.
-pub fn requeue_sync(conn: &Connection, article_id: i64, field: &str, value: bool) -> AppResult<()> {
-    conn.execute(
-        "INSERT INTO sync_queue(article_id, field, value) VALUES (?1, ?2, ?3)
-         ON CONFLICT(article_id, field) DO NOTHING",
-        params![article_id, field, value],
-    )?;
-    Ok(())
 }
 
 #[cfg(test)]
@@ -3450,6 +3457,161 @@ mod tests {
             .query_row("SELECT count(*) FROM sync_queue", [], |r| r.get(0))
             .unwrap();
         assert_eq!(queued, 0);
+    }
+
+    #[test]
+    fn remote_pull_preserves_unpushed_local_read_and_its_queue() {
+        let (conn, aid) = test_db();
+        set_read(&conn, aid, true).unwrap();
+        enqueue_sync(&conn, aid, "read", true).unwrap();
+        // A request that started before the click returns unread.
+        set_sync_state(&conn, aid, false, true).unwrap();
+        let article = get_article(&conn, aid).unwrap();
+        assert!(
+            article.is_read,
+            "a stale remote pull must not undo the local click"
+        );
+        assert!(
+            article.is_starred,
+            "unmodified fields still accept remote updates"
+        );
+        let queued: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sync_queue WHERE article_id=?1",
+                [aid],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(queued, 1, "pending local intent must survive for retry");
+    }
+
+    #[test]
+    fn remote_pull_acknowledges_only_matching_fields() {
+        let (conn, aid) = test_db();
+        set_read(&conn, aid, true).unwrap();
+        set_starred(&conn, aid, true).unwrap();
+        enqueue_sync(&conn, aid, "read", true).unwrap();
+        enqueue_sync(&conn, aid, "starred", true).unwrap();
+        set_sync_state(&conn, aid, true, false).unwrap();
+        assert!(get_article(&conn, aid).unwrap().is_starred);
+        let fields: Vec<String> = conn
+            .prepare("SELECT field FROM sync_queue WHERE article_id=?1")
+            .unwrap()
+            .query_map([aid], |r| r.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(
+            fields,
+            vec!["starred"],
+            "only server-confirmed values are acknowledged"
+        );
+        set_sync_state(&conn, aid, true, true).unwrap();
+        assert_eq!(
+            conn.query_row("SELECT COUNT(*) FROM sync_queue", [], |r| r
+                .get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn sync_queue_snapshot_survives_failure_and_later_local_changes() {
+        let (conn, aid) = test_db();
+        set_setting(&conn, "freshrss_url", "https://sync.test").unwrap();
+        set_remote_id(&conn, aid, "remote-1").unwrap();
+        set_read(&conn, aid, true).unwrap();
+        let queue = sync_queue_to_push(&conn).unwrap();
+        assert_eq!(queue.len(), 1);
+        assert!(queue[0].value);
+        assert_eq!(
+            sync_queue_to_push(&conn).unwrap().len(),
+            1,
+            "taking a snapshot must not lose intent on process exit or request failure"
+        );
+        // An edit made while an earlier read=true push is in flight wins.
+        set_read(&conn, aid, false).unwrap();
+        set_sync_state(&conn, aid, true, false).unwrap();
+        assert!(!get_article(&conn, aid).unwrap().is_read);
+        assert!(!sync_queue_to_push(&conn).unwrap()[0].value);
+        set_sync_state(&conn, aid, false, false).unwrap();
+        assert!(sync_queue_to_push(&conn).unwrap().is_empty());
+        // With no outstanding local edits, changes from another device apply.
+        set_sync_state(&conn, aid, true, true).unwrap();
+        assert!(get_article(&conn, aid).unwrap().is_read);
+    }
+
+    #[test]
+    fn local_state_and_sync_intent_are_atomic() {
+        let (conn, aid) = test_db();
+        set_setting(&conn, "freshrss_url", "https://sync.test").unwrap();
+        conn.execute_batch(
+            "CREATE TRIGGER fail_queue BEFORE INSERT ON sync_queue
+            BEGIN SELECT RAISE(ABORT, 'queue unavailable'); END;",
+        )
+        .unwrap();
+        assert!(set_read(&conn, aid, true).is_err());
+        assert!(
+            !get_article(&conn, aid).unwrap().is_read,
+            "do not claim success locally when durable sync intent cannot be stored"
+        );
+        conn.execute_batch("DROP TRIGGER fail_queue").unwrap();
+        set_read(&conn, aid, true).unwrap();
+        assert_eq!(
+            conn.query_row(
+                "SELECT value FROM sync_queue WHERE article_id=?1 AND field='read'",
+                [aid],
+                |r| r.get::<_, bool>(0)
+            )
+            .unwrap(),
+            true
+        );
+    }
+
+    #[test]
+    fn remote_pull_preserves_bulk_read_before_remote_id_is_known() {
+        let (conn, aid) = test_db();
+        mark_all_read(&conn, &ArticleQuery::All, true).unwrap();
+        assert!(sync_queue_to_push(&conn).unwrap().is_empty());
+        set_remote_id(&conn, aid, "remote-1").unwrap();
+        set_sync_state(&conn, aid, false, false).unwrap();
+        assert!(get_article(&conn, aid).unwrap().is_read);
+        assert_eq!(sync_queue_to_push(&conn).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn backfilled_read_and_star_rules_preserve_sync_intent() {
+        let (conn, aid) = test_db();
+        set_setting(&conn, "freshrss_url", "https://sync.test").unwrap();
+        for action in ["read", "star"] {
+            assert_eq!(
+                apply_rule_to_existing(&conn, None, "title", "Article", action).unwrap(),
+                1
+            );
+        }
+        set_sync_state(&conn, aid, false, false).unwrap();
+        let article = get_article(&conn, aid).unwrap();
+        assert!(article.is_read && article.is_starred);
+        assert_eq!(
+            conn.query_row("SELECT COUNT(*) FROM sync_queue", [], |r| r
+                .get::<_, i64>(0))
+                .unwrap(),
+            2
+        );
+    }
+
+    #[test]
+    fn local_only_read_does_not_queue_sync() {
+        let (conn, aid) = test_db();
+        set_read(&conn, aid, true).unwrap();
+        set_starred(&conn, aid, true).unwrap();
+        assert!(get_article(&conn, aid).unwrap().is_read);
+        assert_eq!(
+            conn.query_row("SELECT COUNT(*) FROM sync_queue", [], |r| r
+                .get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
     }
 
     // ── retention cleanup ────────────────────────────────────────────

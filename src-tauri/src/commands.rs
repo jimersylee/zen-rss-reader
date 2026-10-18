@@ -465,13 +465,6 @@ pub async fn get_article(state: State<'_, AppState>, id: i64) -> AppResult<Artic
     db::get_article(&conn, id)
 }
 
-/// Queue a read/starred change for FreshRSS, but only when a server is linked.
-fn enqueue_if_connected(conn: &rusqlite::Connection, id: i64, field: &str, value: bool) {
-    if db::is_freshrss_connected(conn) {
-        let _ = db::enqueue_sync(conn, id, field, value);
-    }
-}
-
 /// Refresh the two unread surfaces — the Dock badge and the menu-bar tray —
 /// after an operation that changed the unread count.
 async fn refresh_unread_surfaces(app: &AppHandle) {
@@ -485,7 +478,6 @@ pub async fn mark_read(app: AppHandle, id: i64, read: bool) -> AppResult<()> {
         let state = app.state::<AppState>();
         let conn = state.db.lock().await;
         db::set_read(&conn, id, read)?;
-        enqueue_if_connected(&conn, id, "read", read);
     }
     refresh_unread_surfaces(&app).await;
     Ok(())
@@ -496,7 +488,6 @@ pub async fn mark_starred(app: AppHandle, id: i64, starred: bool) -> AppResult<(
     let state = app.state::<AppState>();
     let conn = state.db.lock().await;
     db::set_starred(&conn, id, starred)?;
-    enqueue_if_connected(&conn, id, "starred", starred);
     Ok(())
 }
 
@@ -1161,6 +1152,9 @@ pub async fn freshrss_status(app: AppHandle) -> AppResult<FreshRssStatus> {
 pub async fn freshrss_sync(app: AppHandle) -> AppResult<usize> {
     let n = {
         let state = app.state::<AppState>();
+        // Use the scheduler's lock so manual and background syncs cannot push
+        // different snapshots of the same article out of order.
+        let _refresh_guard = state.refresh_lock.lock().await;
         crate::sync::sync_now(&state.db, &state.http()).await?
     };
     let _ = app.emit("feeds-updated", 0);

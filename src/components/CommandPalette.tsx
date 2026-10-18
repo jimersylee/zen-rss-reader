@@ -292,7 +292,14 @@ export default function CommandPalette({
 
   return (
     <div className="cp-backdrop" onClick={onClose}>
-      <div className="cp" ref={cpRef} onClick={(e) => e.stopPropagation()}>
+      <div
+        className="cp"
+        ref={cpRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("settings.shortcuts.commandPalette")}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="cp-input">
           <Icon name="search" size={16} />
           <input
@@ -311,7 +318,15 @@ export default function CommandPalette({
           />
           <span className="cp-esc">ESC</span>
         </div>
-        <div className="cp-list" id="cp-listbox" role="listbox" ref={listRef}>
+        <div
+          className="cp-list"
+          id="cp-listbox"
+          role="listbox"
+          ref={listRef}
+          tabIndex={0}
+          data-keyboard-scroll
+          aria-label={t("commandPalette.groupActions")}
+        >
           {items.length === 0 ? (
             <div className="cp-empty">
               {articleResults.isFetching

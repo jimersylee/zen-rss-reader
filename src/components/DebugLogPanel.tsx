@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import * as api from "../api";
 import type { DebugLogEntry } from "../types";
 import Icon from "./Icon";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 const LIMIT = 1000;
 
@@ -11,6 +12,8 @@ export default function DebugLogPanel({ onClose }: { onClose: () => void }) {
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(false);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  useFocusTrap(dialogRef);
 
   useEffect(() => {
     pausedRef.current = paused;
@@ -45,7 +48,11 @@ export default function DebugLogPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="debug-log-backdrop" role="dialog" aria-modal="true" onMouseDown={onClose}>
-      <section className="debug-log-window" onMouseDown={(e) => e.stopPropagation()}>
+      <section
+        className="debug-log-window"
+        ref={dialogRef}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <header className="debug-log-head">
           <div>
             <h2>Debug logs</h2>
@@ -63,7 +70,13 @@ export default function DebugLogPanel({ onClose }: { onClose: () => void }) {
             </button>
           </div>
         </header>
-        <div className="debug-log-list" ref={listRef}>
+        <div
+          className="debug-log-list"
+          ref={listRef}
+          tabIndex={0}
+          data-keyboard-scroll
+          aria-label="Debug logs"
+        >
           {logs.map((log) => (
             <div className={`debug-log-row ${log.level.toLowerCase()}`} key={log.id}>
               <span className="debug-log-time">{log.ts}</span>

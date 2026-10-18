@@ -874,6 +874,30 @@ pub async fn set_subscription_folder_url(
     Ok(true)
 }
 
+/// Read specific queued articles even when they are older than the recent
+/// stream window. Shared with Miniflux's ids -> contents pull.
+async fn pull_item_contents(
+    session: &Session,
+    http: &Client,
+    ids: &[String],
+    label: &str,
+) -> AppResult<Contents> {
+    let mut form = vec![
+        ("T".to_string(), session.token.clone()),
+        ("output".to_string(), "json".to_string()),
+    ];
+    form.extend(ids.iter().map(|id| ("i".to_string(), id.clone())));
+    json_ok(
+        send_ok(
+            session.post(http, "stream/items/contents").form(&form),
+            &format!("POST stream/items/contents {label}"),
+        )
+        .await?,
+        &format!("stream/items/contents {label}"),
+    )
+    .await
+}
+
 async fn pull_contents(
     session: &Session,
     http: &Client,
@@ -898,22 +922,8 @@ async fn pull_contents(
         if ids.item_refs.is_empty() {
             return Ok(Contents { items: Vec::new() });
         }
-        let mut form = vec![
-            ("T".to_string(), session.token.clone()),
-            ("output".to_string(), "json".to_string()),
-        ];
-        for item in ids.item_refs {
-            form.push(("i".to_string(), item.id));
-        }
-        return json_ok(
-            send_ok(
-                session.post(http, "stream/items/contents").form(&form),
-                &format!("POST stream/items/contents {label}"),
-            )
-            .await?,
-            &format!("stream/items/contents {label}"),
-        )
-        .await;
+        let ids: Vec<String> = ids.item_refs.into_iter().map(|item| item.id).collect();
+        return pull_item_contents(session, http, &ids, label).await;
     }
 
     json_ok(
@@ -946,11 +956,11 @@ fn contents_query(unread_only: bool) -> String {
 async fn push_queue(db: &Db, http: &Client, session: &Session, label: &str) -> AppResult<usize> {
     let queue = {
         let conn = db.lock().await;
-        db::take_sync_queue(&conn)?
+        db::sync_queue_to_push(&conn)?
     };
     log::info!("sync: {label}: pushable queued changes={}", queue.len());
     let mut pushed = 0usize;
-    let mut failed: Vec<db::SyncEntry> = Vec::new();
+    let mut failed = 0usize;
     for entry in queue {
         let ok = match push_state(session, http, &entry.remote_id, &entry.field, entry.value).await
         {
@@ -969,15 +979,11 @@ async fn push_queue(db: &Db, http: &Client, session: &Session, label: &str) -> A
         if ok {
             pushed += 1;
         } else {
-            failed.push(entry);
+            failed += 1;
         }
     }
-    if !failed.is_empty() {
-        log::warn!("sync: {} change(s) failed to push, re-queued", failed.len());
-        let conn = db.lock().await;
-        for entry in &failed {
-            let _ = db::requeue_sync(&conn, entry.article_id, &entry.field, entry.value);
-        }
+    if failed > 0 {
+        log::warn!("sync: {failed} change(s) failed to push; kept queued for retry");
     }
     Ok(pushed)
 }
@@ -1094,8 +1100,9 @@ pub async fn sync_now(db: &Db, http: &Client) -> AppResult<usize> {
     }
 
     // 3 ── pull recent remote items plus the unread stream. The sync server is
-    // the source of truth in connected mode, so new remote articles are
-    // inserted locally and remote read/starred state overwrites local state.
+    // the source of truth for imported content. Unsynced local state takes
+    // precedence until a remote response confirms it; never discard a click
+    // made while these network requests were in flight.
     let mut contents = pull_contents(&session, http, creds.provider, false, "reading-list").await?;
     contents.items.extend(
         pull_contents(&session, http, creds.provider, true, "unread")
@@ -1103,11 +1110,43 @@ pub async fn sync_now(db: &Db, http: &Client) -> AppResult<usize> {
             .items,
     );
 
+    // A successfully uploaded old read item may be absent from both bounded
+    // streams. Verify those queue entries explicitly, otherwise keeping intent
+    // until read-back confirmation would re-upload them on every future sync.
+    let pending_ids: Vec<String> = {
+        let conn = db.lock().await;
+        let seen: std::collections::HashSet<&str> =
+            contents.items.iter().map(|item| item.id.as_str()).collect();
+        db::sync_queue_to_push(&conn)?
+            .into_iter()
+            .map(|entry| entry.remote_id)
+            .filter(|id| !seen.contains(id.as_str()))
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    };
+    for ids in pending_ids.chunks(100) {
+        match pull_item_contents(&session, http, ids, "pending state verification").await {
+            Ok(items) => contents.items.extend(items.items),
+            Err(error) => {
+                log::warn!("sync: queued state verification failed; keeping local intent: {error}")
+            }
+        }
+    }
+
     let mut reconciled = 0usize;
     let mut inserted = 0usize;
     {
         let conn = db.lock().await;
-        for item in contents.items {
+        // The unread stream is fetched later than reading-list. Reconcile
+        // each remote id only once, preferring its later snapshot. Otherwise
+        // the first copy can acknowledge a pending edit and a second stale
+        // copy can immediately overwrite it after the queue row is removed.
+        let mut seen = std::collections::HashSet::new();
+        for item in contents.items.into_iter().rev() {
+            if !seen.insert(item.id.clone()) {
+                continue;
+            }
             let url = item_url(&item);
             let read = has_state_tag(&item.categories, READ_TAG);
             let starred = has_state_tag(&item.categories, STARRED_TAG);
@@ -1147,7 +1186,6 @@ pub async fn sync_now(db: &Db, http: &Client) -> AppResult<usize> {
 
             db::set_remote_id(&conn, aid, &item.id)?;
             db::set_sync_state(&conn, aid, read, starred)?;
-            db::clear_sync_queue_for_article(&conn, aid)?;
             reconciled += 1;
         }
     }
@@ -1161,6 +1199,208 @@ pub async fn sync_now(db: &Db, http: &Client) -> AppResult<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn read_state_survives_edit_during_pull_and_failed_push() {
+        use std::sync::{
+            atomic::{AtomicBool, AtomicUsize, Ordering},
+            Arc,
+        };
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            net::TcpListener,
+            sync::Notify,
+        };
+
+        // A local protocol fixture, not the user's configured sync server.
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let remote_read = Arc::new(AtomicBool::new(false));
+        let fail_push = Arc::new(AtomicBool::new(false));
+        let omit_recent = Arc::new(AtomicBool::new(false));
+        let pushes = Arc::new(AtomicUsize::new(0));
+        let pull_started = Arc::new(Notify::new());
+        let resume_pull = Arc::new(Notify::new());
+        let server = {
+            let remote_read = remote_read.clone();
+            let fail_push = fail_push.clone();
+            let omit_recent = omit_recent.clone();
+            let pushes = pushes.clone();
+            let pull_started = pull_started.clone();
+            let resume_pull = resume_pull.clone();
+            tokio::spawn(async move {
+                let mut pause_once = true;
+                loop {
+                    let (mut socket, _) = listener.accept().await.unwrap();
+                    let mut request = Vec::new();
+                    let mut buf = [0u8; 4096];
+                    loop {
+                        let n = socket.read(&mut buf).await.unwrap();
+                        assert!(n > 0);
+                        request.extend_from_slice(&buf[..n]);
+                        if let Some(end) = request.windows(4).position(|w| w == b"\r\n\r\n") {
+                            let headers = String::from_utf8_lossy(&request[..end]);
+                            let length = headers
+                                .lines()
+                                .find_map(|line| {
+                                    let (key, value) = line.split_once(':')?;
+                                    key.eq_ignore_ascii_case("content-length")
+                                        .then(|| value.trim().parse::<usize>().unwrap())
+                                })
+                                .unwrap_or(0);
+                            if request.len() >= end + 4 + length {
+                                break;
+                            }
+                        }
+                    }
+                    let request = String::from_utf8(request).unwrap();
+                    let path = request
+                        .lines()
+                        .next()
+                        .unwrap()
+                        .split_whitespace()
+                        .nth(1)
+                        .unwrap();
+                    let (status, body) = if path.ends_with("/token") {
+                        (200, "token".to_string())
+                    } else if path.contains("subscription/list") {
+                        (200, r#"{"subscriptions":[{"id":"feed/https://feed.test/rss","url":"https://feed.test/rss","title":"Fixture"}]}"#.to_string())
+                    } else if path.ends_with("edit-tag") {
+                        pushes.fetch_add(1, Ordering::SeqCst);
+                        if fail_push.load(Ordering::SeqCst) {
+                            (503, "temporary failure".to_string())
+                        } else {
+                            remote_read.store(request.contains("a=user"), Ordering::SeqCst);
+                            (200, "OK".to_string())
+                        }
+                    } else if path.contains("stream/contents")
+                        || path.ends_with("stream/items/contents")
+                    {
+                        if pause_once {
+                            pause_once = false;
+                            pull_started.notify_one();
+                            resume_pull.notified().await;
+                        }
+                        let read = remote_read.load(Ordering::SeqCst);
+                        if (path.contains("&xt=") && read)
+                            || (path.contains("stream/contents")
+                                && omit_recent.load(Ordering::SeqCst))
+                        {
+                            (200, r#"{"items":[]}"#.to_string())
+                        } else {
+                            (
+                                200,
+                                serde_json::json!({"items":[{
+                                    "id":"remote-1", "title":"Fixture article",
+                                    "canonical":[{"href":"https://feed.test/post"}],
+                                    "origin":{"streamId":"feed/https://feed.test/rss"},
+                                    "categories": if read { vec![READ_TAG] } else { vec![] }
+                                }]})
+                                .to_string(),
+                            )
+                        }
+                    } else {
+                        panic!("unexpected fixture request: {path}")
+                    };
+                    socket.write_all(format!("HTTP/1.1 {status} Test\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).as_bytes()).await.unwrap();
+                }
+            })
+        };
+        let conn = db::open(std::path::Path::new(":memory:")).unwrap();
+        for (key, value) in [
+            ("freshrss_url", base.as_str()),
+            ("freshrss_user", "fixture"),
+            ("freshrss_auth", "fixture-token"),
+        ] {
+            db::set_setting(&conn, key, value).unwrap();
+        }
+        let fid = db::insert_feed(
+            &conn,
+            "https://feed.test/rss",
+            None,
+            "Fixture",
+            None,
+            crate::models::SourceType::Rss,
+            None,
+        )
+        .unwrap();
+        let item: Item = serde_json::from_value(serde_json::json!({
+            "id":"remote-1", "title":"Fixture article"
+        }))
+        .unwrap();
+        db::upsert_article(
+            &conn,
+            fid,
+            &item_article(&item, Some("https://feed.test/post".into())),
+            false,
+            &[],
+        )
+        .unwrap();
+        let aid = db::article_id_by_feed_guid(&conn, fid, "remote-1")
+            .unwrap()
+            .unwrap();
+        db::set_remote_id(&conn, aid, "remote-1").unwrap();
+        let db = Arc::new(Mutex::new(conn));
+        let http = Client::builder()
+            .no_proxy()
+            .timeout(std::time::Duration::from_secs(5))
+            .build()
+            .unwrap();
+        let first_sync = {
+            let db = db.clone();
+            let http = http.clone();
+            tokio::spawn(async move { sync_now(&db, &http).await })
+        };
+        tokio::time::timeout(std::time::Duration::from_secs(5), pull_started.notified())
+            .await
+            .unwrap();
+        // Reproduce: click read after the push phase, before the old pull lands.
+        db::set_read(&*db.lock().await, aid, true).unwrap();
+        resume_pull.notify_one();
+        first_sync.await.unwrap().unwrap();
+        {
+            let conn = db.lock().await;
+            assert!(db::get_article(&conn, aid).unwrap().is_read);
+            assert_eq!(db::sync_queue_to_push(&conn).unwrap().len(), 1);
+        }
+        // Next sync pushes it; a matching remote response acknowledges it.
+        sync_now(&db, &http).await.unwrap();
+        assert!(remote_read.load(Ordering::SeqCst));
+        assert!(db::sync_queue_to_push(&*db.lock().await)
+            .unwrap()
+            .is_empty());
+        // A failed unread push must survive a remote read=true response.
+        db::set_read(&*db.lock().await, aid, false).unwrap();
+        fail_push.store(true, Ordering::SeqCst);
+        sync_now(&db, &http).await.unwrap();
+        {
+            let conn = db.lock().await;
+            assert!(!db::get_article(&conn, aid).unwrap().is_read);
+            assert_eq!(db::sync_queue_to_push(&conn).unwrap().len(), 1);
+        }
+        fail_push.store(false, Ordering::SeqCst);
+        sync_now(&db, &http).await.unwrap();
+        assert!(!remote_read.load(Ordering::SeqCst));
+        assert!(db::sync_queue_to_push(&*db.lock().await)
+            .unwrap()
+            .is_empty());
+        // Confirm old items by id even when they fall outside recent streams.
+        omit_recent.store(true, Ordering::SeqCst);
+        db::set_read(&*db.lock().await, aid, true).unwrap();
+        sync_now(&db, &http).await.unwrap();
+        assert!(remote_read.load(Ordering::SeqCst));
+        assert!(db::sync_queue_to_push(&*db.lock().await)
+            .unwrap()
+            .is_empty());
+        let pushed = pushes.load(Ordering::SeqCst);
+        sync_now(&db, &http).await.unwrap();
+        assert_eq!(
+            pushes.load(Ordering::SeqCst),
+            pushed,
+            "confirmed old items must not be uploaded repeatedly"
+        );
+        server.abort();
+    }
 
     fn cat(id: &str, label: Option<&str>) -> SubCat {
         SubCat {

@@ -145,6 +145,8 @@ interface UiState {
    *  original-page webview that floats above the DOM (issue #74), so the
    *  reader suspends that view while a menu is up. */
   menuOpen: boolean;
+  keyboardHintsOpen: boolean;
+  setKeyboardHintsOpen: (open: boolean) => void;
 
   select: (query: ArticleQuery, label: string) => void;
   openArticle: (id: number | null) => void;
@@ -237,7 +239,18 @@ export const useUi = create<UiState>((set) => ({
     const value = localStorage.getItem("theme");
     if (value === "light") return "zen-light" as Theme;
     if (value === "dark") return "zen-dark" as Theme;
-    return ls.oneOf<Theme>("theme", ["zen-light", "zen-dark", "catppuccin-latte", "catppuccin-frappe", "catppuccin-macchiato", "catppuccin-mocha"], "zen-light");
+    return ls.oneOf<Theme>(
+      "theme",
+      [
+        "zen-light",
+        "zen-dark",
+        "catppuccin-latte",
+        "catppuccin-frappe",
+        "catppuccin-macchiato",
+        "catppuccin-mocha",
+      ],
+      "zen-light",
+    );
   })(),
   density: ls.oneOf<Density>("density", ["compact", "cozy", "spacious"], "cozy"),
   viewMode: ls.oneOf<ViewMode>("viewMode", ["list", "card"], "list"),
@@ -256,6 +269,7 @@ export const useUi = create<UiState>((set) => ({
   aiOpen: false,
   modalOpen: false,
   menuOpen: false,
+  keyboardHintsOpen: false,
 
   select: (query, label) => {
     // Remember the selection so the "open on startup: last view" preference
@@ -340,6 +354,7 @@ export const useUi = create<UiState>((set) => ({
   setAiOpen: (aiOpen) => set({ aiOpen }),
   setModalOpen: (modalOpen) => set({ modalOpen }),
   setMenuOpen: (menuOpen) => set({ menuOpen }),
+  setKeyboardHintsOpen: (keyboardHintsOpen) => set({ keyboardHintsOpen }),
 }));
 
 // Seed the backend's theme copy on startup so an existing install — whose

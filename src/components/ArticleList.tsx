@@ -39,7 +39,6 @@ export default function ArticleList({ onToast }: Props) {
   const viewMode = useUi((s) => s.viewMode);
   const density = useUi((s) => s.density);
   const showCardThumbs = useUi((s) => s.prefs.showCardThumbs);
-  const markReadOnOpen = useUi((s) => s.prefs.markReadOnOpen);
   const selectedId = useUi((s) => s.selectedArticleId);
   const openArticle = useUi((s) => s.openArticle);
 
@@ -363,6 +362,17 @@ export default function ArticleList({ onToast }: Props) {
 
   // Arrow-key navigation for the listbox (in addition to the global j/k).
   const onListKeyDown = (e: React.KeyboardEvent) => {
+    if (e.nativeEvent.isComposing) return;
+    if (e.key === "Enter" || e.key === " ") {
+      const row =
+        (e.target as HTMLElement).closest<HTMLElement>('[role="option"]') ??
+        document.getElementById(`option-article-${selectedId}`);
+      if (row) {
+        e.preventDefault();
+        row.click();
+      }
+      return;
+    }
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
     if (items.length === 0) return;
     e.preventDefault();
@@ -413,7 +423,13 @@ export default function ArticleList({ onToast }: Props) {
         </div>
       </div>
 
-      <div className="list-scroll" ref={scrollRef}>
+      <div
+        className="list-scroll"
+        ref={scrollRef}
+        tabIndex={0}
+        data-keyboard-scroll
+        aria-label={t("settings.shortcuts.articlePane")}
+      >
         {browse.isLoading && (
           <div>
             {Array.from({ length: 7 }).map((_, i) => (
@@ -500,9 +516,11 @@ export default function ArticleList({ onToast }: Props) {
                     id={`option-article-${a.id}`}
                     aria-selected={selectedId === a.id}
                     onClick={() => {
-                      if (!a.isRead && markReadOnOpen) actions.setRead(a.id, true);
+                      // Reader owns mark-on-open for mouse, keyboard and search.
                       openArticle(a.id);
                     }}
+                    tabIndex={-1}
+                    data-keyboard-context
                     onContextMenu={(e) => {
                       e.preventDefault();
                       setMenu({ x: e.clientX, y: e.clientY, article: a });

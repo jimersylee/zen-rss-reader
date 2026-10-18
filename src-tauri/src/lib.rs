@@ -257,7 +257,38 @@ pub fn run() {
     {
         builder = builder
             .plugin(tauri_plugin_updater::Builder::new().build())
-            .plugin(tauri_plugin_process::init());
+            .plugin(tauri_plugin_process::init())
+            .menu(|app| {
+                use tauri::menu::{Menu, MenuItem, Submenu};
+                let menu = Menu::default(app)?;
+                let hints = MenuItem::with_id(
+                    app,
+                    "keyboard_hints",
+                    "Return to App Controls",
+                    true,
+                    Some("CmdOrCtrl+Shift+F6"),
+                )?;
+                menu.append(&Submenu::with_items(app, "Keyboard", true, &[&hints])?)?;
+                Ok(menu)
+            })
+            .on_menu_event(|app, event| {
+                if event.id().as_ref() != "keyboard_hints" {
+                    return;
+                }
+                // A remote child webview has no backend permissions and its
+                // key events do not reach React. A native accelerator returns
+                // focus without exposing IPC to untrusted article pages.
+                if let Some(page) = app.get_webview("page-view") {
+                    let _ = page.hide();
+                }
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.set_focus();
+                }
+                if let Some(main) = app.get_webview("main") {
+                    let _ = main.set_focus();
+                    let _ = main.emit("keyboard-hints-requested", ());
+                }
+            });
     }
 
     let app = builder

@@ -244,7 +244,8 @@ export default function Reader({ onToast }: Props) {
   // below).
   const modalOpen = useUi((s) => s.modalOpen);
   const menuOpen = useUi((s) => s.menuOpen);
-  const overlayOpen = modalOpen || menuOpen || aiOpen || tagPick != null;
+  const keyboardHintsOpen = useUi((s) => s.keyboardHintsOpen);
+  const overlayOpen = modalOpen || menuOpen || keyboardHintsOpen || aiOpen || tagPick != null;
   // Read the latest value inside the lifecycle effect without making it a
   // dependency — overlays toggle visibility (below), never the webview's life.
   const overlayOpenRef = useRef(overlayOpen);
@@ -844,6 +845,10 @@ export default function Reader({ onToast }: Props) {
         <div
           className="reader-scroll"
           ref={scrollRef}
+          tabIndex={0}
+          data-keyboard-scroll
+          data-keyboard-context
+          aria-label={t("settings.shortcuts.readerPane")}
           onScroll={onScroll}
           onContextMenu={(e) => {
             e.preventDefault();
@@ -1288,7 +1293,14 @@ function AIDrawer({
           <Icon name="x" size={14} />
         </button>
       </div>
-      <div className="ai-body" aria-live="polite" aria-busy={busy}>
+      <div
+        className="ai-body"
+        tabIndex={0}
+        data-keyboard-scroll
+        aria-label={t("reader.aiSummaryTitle")}
+        aria-live="polite"
+        aria-busy={busy}
+      >
         {loading && (
           <div className="ai-loading">
             <span className="ai-dot" />

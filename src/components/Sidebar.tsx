@@ -31,6 +31,7 @@ const sameQuery = (a: ArticleQuery, b: ArticleQuery) => JSON.stringify(a) === JS
 /** Enter / Space activator for a div that behaves as a button — gives the
  *  sidebar's clickable rows keyboard parity with their onClick. */
 const onActivate = (fn: () => void) => (e: React.KeyboardEvent) => {
+  if (e.target !== e.currentTarget || e.nativeEvent.isComposing) return;
   if (e.key === "Enter" || e.key === " ") {
     e.preventDefault();
     fn();
@@ -498,6 +499,7 @@ export default function Sidebar({
       }}
       onClick={() => select({ kind: "feed", value: f.id }, f.title)}
       onKeyDown={onActivate(() => select({ kind: "feed", value: f.id }, f.title))}
+      data-keyboard-context
       onContextMenu={(e) => {
         e.preventDefault();
         setMenu({ x: e.clientX, y: e.clientY, kind: "feed", feed: f });
@@ -538,7 +540,12 @@ export default function Sidebar({
         <kbd>{modCombo("K")}</kbd>
       </div>
 
-      <div className="sidebar-scroll">
+      <div
+        className="sidebar-scroll"
+        tabIndex={0}
+        data-keyboard-scroll
+        aria-label={t("settings.shortcuts.sidebarPane")}
+      >
         <div className="sb-section-title">
           <span>{t("sidebar.library")}</span>
         </div>
@@ -692,6 +699,7 @@ export default function Sidebar({
                 onKeyDown={onActivate(() =>
                   select({ kind: "folder", value: folder.id }, folder.name),
                 )}
+                data-keyboard-context
                 onContextMenu={(e) => {
                   e.preventDefault();
                   setMenu({ x: e.clientX, y: e.clientY, kind: "folder", folder });
@@ -769,6 +777,7 @@ export default function Sidebar({
             onDrop={() => dropTag(tag.id)}
             onClick={() => select({ kind: "tag", value: tag.id }, tag.name)}
             onKeyDown={onActivate(() => select({ kind: "tag", value: tag.id }, tag.name))}
+            data-keyboard-context
             onContextMenu={(e) => {
               e.preventDefault();
               setMenu({ x: e.clientX, y: e.clientY, kind: "tag", tag });

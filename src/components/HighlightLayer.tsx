@@ -19,6 +19,7 @@ import { HIGHLIGHT_COLORS } from "../lib/highlightColors";
 import { clampAxis } from "../lib/viewport";
 import type { Highlight } from "../types";
 import Icon from "./Icon";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 interface Props {
   /** The article whose body is highlighted. */
@@ -125,8 +126,19 @@ export default function HighlightLayer({ articleId, bodyRef, bodyVersion }: Prop
         }
       }, 0);
     };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (
+        e.shiftKey &&
+        ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)
+      )
+        onMouseUp();
+    };
     el.addEventListener("mouseup", onMouseUp);
-    return () => el.removeEventListener("mouseup", onMouseUp);
+    el.addEventListener("keyup", onKeyUp);
+    return () => {
+      el.removeEventListener("mouseup", onMouseUp);
+      el.removeEventListener("keyup", onKeyUp);
+    };
   }, [bodyRef]);
 
   // Clicking an existing highlight <mark> opens its edit popover.
@@ -243,8 +255,19 @@ function SelectionToolbar({
   // A scroll or an outside click ends the selection toolbar.
   useEffect(() => {
     const onScroll = () => onDismiss();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        onDismiss();
+      }
+    };
     window.addEventListener("scroll", onScroll, true);
-    return () => window.removeEventListener("scroll", onScroll, true);
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("keydown", onKey, true);
+    };
   }, [onDismiss]);
 
   return (
@@ -289,6 +312,7 @@ function HighlightPopover({
 }) {
   const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
+  useFocusTrap(ref);
   const [note, setNote] = useState(hl.note);
   // Latest note, read by the once-bound outside-click handler so the listener
   // need not re-subscribe on every keystroke.

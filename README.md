@@ -33,6 +33,7 @@ the CLI can never drift apart.
 - **FreshRSS sync** — keep read state in step with a FreshRSS server.
 - **Local-first** — everything stays on your machine. No account, no cloud.
 - **Localized** — English, Japanese, and Simplified Chinese.
+- **Keyboard-first** — press `;` for letter hints on visible controls; [keyboard guide](docs/keyboard.md).
 
 ### Install
 
